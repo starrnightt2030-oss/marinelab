@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { createWorld, DIM, MAT, gasket, elbowAssembly, studBolt, dropletSprite, ringSprite } from './scene.js';
+import { createWorld, DIM, MAT, gasket, elbowAssembly, studBolt, dropletSprite, ringSprite, wireBrush, torqueWrench } from './scene.js';
+import { createWorker } from './worker3d.js';
 import { audio, sfx, speak, stopSpeaking, unlockAudio, leakSound } from './audio.js';
 import { VOICE } from './voice-lines.js';
 
@@ -22,6 +23,12 @@ const I = {
   gasket: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><circle cx="24" cy="24" r="11"/></svg>',
   gasketSmall: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="12"/><circle cx="24" cy="24" r="8"/></svg>',
   elbow: '<svg viewBox="0 0 48 48"><path d="M6 30h10a14 14 0 0 0 14-14V6"/><path d="M6 40h10a24 24 0 0 0 24-24V6"/><path d="M4 26v18M26 4h18"/></svg>',
+  brush: '<svg viewBox="0 0 48 48"><rect x="6" y="20" width="22" height="9" rx="2"/><path d="M8 29v6M12 29v6M16 29v6M20 29v6M24 29v6"/><path d="M28 23l15-5"/></svg>',
+  file: '<svg viewBox="0 0 48 48"><path d="M6 30l26-14 4 6-26 14z"/><path d="M12 29l3 4M17 26l3 4M22 23l3 4M27 20l3 4"/><path d="M36 20l7-4"/></svg>',
+  rag: '<svg viewBox="0 0 48 48"><path d="M8 14c6-4 10 2 16-2s10 2 16-2v22c-6 4-10-2-16 2s-10-2-16 2z"/></svg>',
+  twrench: '<svg viewBox="0 0 48 48"><circle cx="12" cy="12" r="6"/><path d="M16 16l22 22"/><path d="M33 33l6 6"/><rect x="27" y="25" width="6" height="10" rx="2" transform="rotate(-45 30 30)"/></svg>',
+  pipewrench: '<svg viewBox="0 0 48 48"><path d="M10 8h12v6H16v4h6v5H10z"/><path d="M16 23v19"/><path d="M13 42h6"/></svg>',
+  hammer: '<svg viewBox="0 0 48 48"><path d="M8 10h20v8H8z"/><path d="M28 12h6v4h-6"/><path d="M16 18v24"/></svg>',
   ok: '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>',
   warn: '<svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>',
   info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>',
@@ -82,7 +89,14 @@ document.addEventListener('click', e => {
   if (a === 'replay') narrate();
   if (a === 'again') startExercise();
   if (a === 'gohome') { show('home'); renderHome(); }
+  if (a === 'exit') exitApp();
 });
+
+function exitApp() {
+  try { document.fullscreenElement && document.exitFullscreen(); } catch { /* ignore */ }
+  stopVoice(); window.close();
+  setTimeout(() => { const h = $('#exitHint'); h.hidden = false; gsap.fromTo(h, { opacity: 0 }, { opacity: 1, duration: .3 }); setTimeout(() => (h.hidden = true), 5000); }, 400);
+}
 
 // ---------------- world ----------------
 let W = null, raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -96,7 +110,7 @@ async function ensureWorld() {
   if (W) return W;
   const logo = new Image(); logo.src = 'assets/logo.png';
   await Promise.all([logo.decode().catch(() => {}), document.fonts.load('700 40px "Readex Pro"').catch(() => {}), document.fonts.load('600 40px "Readex Pro"').catch(() => {})]);
-  W = await createWorld($('#stage'), logo);
+  W = await createWorld($('#stage'), logo); W.logo = logo;
   W.dirtOriginal = (() => { const c = document.createElement('canvas'); const src = W.dirtTex.userData.canvas; c.width = src.width; c.height = src.height; c.getContext('2d').drawImage(src, 0, 0); return c; })();
   // leak particles
   const N = 700, geo = new THREE.BufferGeometry();
@@ -109,7 +123,7 @@ async function ensureWorld() {
   W.renderer.setAnimationLoop(() => {
     const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     W.controls.update();
-    tickLeak(dt); tickTest(dt);
+    tickLeak(dt); tickTest(dt); tickDust(dt);
     if (S && S.pulse) S.pulse.forEach(m => { m.material.opacity = 0.55 + 0.45 * Math.sin(now / 220); });
     W.renderer.render(W.scene, W.camera);
     updateLabels();
@@ -117,6 +131,25 @@ async function ensureWorld() {
   return W;
 }
 
+let dust = null;
+function emitDust(p) {
+  if (!dust) {
+    const N = 300, geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3).fill(-10), 3));
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.004, color: 0x8a4b22, transparent: true, opacity: 0.9, depthWrite: false }));
+    pts.frustumCulled = false; W.scene.add(pts); dust = { pts, N, vel: new Float32Array(N * 3), life: new Float32Array(N), i: 0 };
+  }
+  const a = dust.pts.geometry.attributes.position.array;
+  for (let k = 0; k < 5; k++) {
+    const i = dust.i = (dust.i + 1) % dust.N;
+    a[i * 3] = p.x + 0.004; a[i * 3 + 1] = p.y; a[i * 3 + 2] = p.z;
+    dust.vel[i * 3] = 0.2 + Math.random() * 0.4; dust.vel[i * 3 + 1] = (Math.random() - .2) * 0.5; dust.vel[i * 3 + 2] = (Math.random() - .5) * 0.6; dust.life[i] = 0.8;
+  }
+}
+function tickDust(dt) {
+  if (!dust) return; const a = dust.pts.geometry.attributes.position.array;
+  for (let i = 0; i < dust.N; i++) { if (dust.life[i] <= 0) { a[i * 3 + 1] = -10; continue; } dust.life[i] -= dt; dust.vel[i * 3 + 1] -= 4 * dt; a[i * 3] += dust.vel[i * 3] * dt; a[i * 3 + 1] += dust.vel[i * 3 + 1] * dt; a[i * 3 + 2] += dust.vel[i * 3 + 2] * dt; }
+  dust.pts.geometry.attributes.position.needsUpdate = true;
+}
 function tickLeak(dt) {
   if (!leak) return;
   const p = leak.pts.geometry.attributes.position.array, v = leak.vel;
@@ -246,10 +279,11 @@ function resetScene() {
   const c = W.dirtTex.userData.canvas.getContext('2d');
   c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, 256, 256); c.drawImage(W.dirtOriginal, 0, 0);
   W.dirtTex.needsUpdate = true; W.dirt.material.opacity = 1; W.dirt.visible = true;
-  $('#gauge').hidden = true; $('#toast').hidden = true; $('#worker').hidden = true; $('#ppePill').hidden = true;
+  $('#gauge').hidden = true; $('#toast').hidden = true; $('#worker').hidden = true; $('#ppePill').hidden = true; if (WK) WK.stop();
 }
 function nextStep() { sfx.ok(); enterStep(S.step + 1); }
 function enterStep(i) {
+  if (S.toolObj && !['clean', 'torque'].includes(STEPS[i].id)) dropTool();
   S.step = i; renderSteps(); clearMarkers(); clearLabels();
   const id = STEPS[i].id;
   narrate();
@@ -264,53 +298,29 @@ const PPE = [
   { k: 'scarf', t: 'كوفية طويلة', ok: false, why: 'اللبس الواسع والكوفية خطر: ممكن تتلف في أي جزء دوّار.' },
   { k: 'sandal', t: 'شبشب', ok: false, why: 'الشبشب ممنوع. لازم حذاء أمان بمقدمة حديد يحمي صوابعك.' },
 ];
-function workerSVG() {
-  return `<svg viewBox="0 0 200 300" role="img" aria-label="المتدرب ومهمات الوقاية">
-  <defs><linearGradient id="cov" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#173f8f"/><stop offset=".5" stop-color="#2459c4"/><stop offset="1" stop-color="#173f8f"/></linearGradient>
-  <linearGradient id="hel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#f2a900"/></linearGradient>
-  <linearGradient id="glv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb35c"/><stop offset="1" stop-color="#e2711d"/></linearGradient></defs>
-  <ellipse cx="100" cy="292" rx="58" ry="6" fill="#000" opacity=".35"/>
-  <g id="w-shoes"><rect x="58" y="270" width="38" height="14" rx="6" fill="#6b7280"/><rect x="104" y="270" width="38" height="14" rx="6" fill="#6b7280"/></g>
-  <rect x="62" y="190" width="34" height="84" rx="8" fill="url(#cov)"/><rect x="104" y="190" width="34" height="84" rx="8" fill="url(#cov)"/>
-  <rect x="62" y="242" width="34" height="6" fill="#d9e2ef"/><rect x="104" y="242" width="34" height="6" fill="#d9e2ef"/>
-  <path d="M66 100 L44 176" stroke="url(#cov)" stroke-width="22" stroke-linecap="round"/><path d="M134 100 L156 176" stroke="url(#cov)" stroke-width="22" stroke-linecap="round"/>
-  <path d="M60 98 Q100 84 140 98 L146 198 L54 198 Z" fill="url(#cov)"/>
-  <rect x="56" y="150" width="88" height="7" fill="#d9e2ef"/><rect x="56" y="182" width="88" height="8" fill="#0f2c66"/><rect x="94" y="181" width="12" height="10" rx="2" fill="#c9d3e3"/>
-  <circle cx="122" cy="118" r="7" fill="#fff"/><circle cx="122" cy="118" r="5" fill="#E8323C"/>
-  <circle cx="42" cy="184" r="10" fill="#d9a77f"/><circle cx="158" cy="184" r="10" fill="#d9a77f"/>
-  <rect x="91" y="80" width="18" height="12" fill="#d9a77f"/>
-  <circle cx="100" cy="62" r="25" fill="#e2b48c"/><path d="M76 56 Q100 30 124 56 Q112 44 100 46 Q86 46 76 56Z" fill="#3b2a20"/>
-  <circle cx="91" cy="64" r="2.6" fill="#2a1d14"/><circle cx="109" cy="64" r="2.6" fill="#2a1d14"/><path d="M93 75 Q100 80 107 75" stroke="#7a4a32" stroke-width="2" fill="none" stroke-linecap="round"/>
-  <g id="w-scarf" class="wl"><path d="M80 86 Q100 98 120 86 L122 96 Q100 108 78 96Z" fill="#c2410c"/><path d="M108 98 L118 150 L106 146 L100 100Z" fill="#c2410c"/></g>
-  <g id="w-watch" class="wl"><rect x="34" y="166" width="16" height="9" rx="2" fill="#1f2937"/><circle cx="42" cy="170" r="5" fill="#cbd5e1" stroke="#1f2937"/><circle cx="160" cy="190" r="3" fill="none" stroke="#facc15" stroke-width="2"/></g>
-  <g id="w-sandal" class="wl"><rect x="58" y="279" width="38" height="6" rx="3" fill="#0ea5e9"/><rect x="104" y="279" width="38" height="6" rx="3" fill="#0ea5e9"/><path d="M70 279 L77 270 L84 279M116 279 L123 270 L130 279" stroke="#0ea5e9" stroke-width="3" fill="none"/></g>
-  <g id="w-boots" class="wl"><path d="M58 248 h38 v26 q0 12 -12 12 h-30 q-4 0 -4 -6z" fill="#111827"/><path d="M104 248 h38 v32 q0 6 -4 6 h-30 q-4 0 -4 -6z" fill="#111827"/><rect x="58" y="276" width="20" height="10" rx="4" fill="#9ca3af"/><rect x="122" y="276" width="20" height="10" rx="4" fill="#9ca3af"/><rect x="58" y="254" width="38" height="4" fill="#facc15"/><rect x="104" y="254" width="38" height="4" fill="#facc15"/></g>
-  <g id="w-gloves" class="wl"><rect x="29" y="166" width="26" height="32" rx="10" fill="url(#glv)"/><rect x="145" y="166" width="26" height="32" rx="10" fill="url(#glv)"/><rect x="29" y="166" width="26" height="7" rx="3" fill="#9a3412"/><rect x="145" y="166" width="26" height="7" rx="3" fill="#9a3412"/></g>
-  <g id="w-goggles" class="wl"><rect x="74" y="60" width="52" height="5" rx="2" fill="#1f2937"/><rect x="80" y="56" width="18" height="13" rx="5" fill="#7dd3fc" fill-opacity=".75" stroke="#1f2937" stroke-width="2"/><rect x="102" y="56" width="18" height="13" rx="5" fill="#7dd3fc" fill-opacity=".75" stroke="#1f2937" stroke-width="2"/><path d="M84 59 l5 0" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g>
-  <g id="w-helmet" class="wl"><path d="M70 54 A30 30 0 0 1 130 54 Z" fill="url(#hel)"/><rect x="64" y="50" width="72" height="9" rx="4.5" fill="#f2a900"/><path d="M100 26 v26" stroke="#e09600" stroke-width="5"/><circle cx="86" cy="42" r="5" fill="#fff"/><circle cx="86" cy="42" r="3.4" fill="#2F7CF6"/></g>
-  </svg>`;
-}
 const PPE_OK = ['helmet', 'goggles', 'gloves', 'boots'];
+let WK = null;
 function showWorker() {
   const w = $('#worker');
-  w.innerHTML = `<b class="worker__title">المتدرب</b>${workerSVG()}<ul class="worker__list">${PPE_OK.map(k => `<li data-slot="${k}">${I[k]}<span>${PPE.find(p => p.k === k).t}</span></li>`).join('')}</ul>`;
-  w.querySelectorAll('.wl').forEach(g => (g.style.opacity = 0));
-  w.hidden = false; gsap.fromTo(w, { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: .5, ease: 'power2.out' });
+  if (!WK) {
+    w.innerHTML = `<b class="worker__title">المتدرب</b><div class="worker__stage" id="workerStage"></div><ul class="worker__list">${PPE_OK.map(k => `<li data-slot="${k}">${I[k]}<span>${PPE.find(p => p.k === k).t}</span></li>`).join('')}</ul>`;
+    w.hidden = false;
+    WK = createWorker($('#workerStage'), W.logo);
+  }
+  w.hidden = false; WK.reset(); WK.start();
+  w.querySelectorAll('[data-slot]').forEach(li => li.classList.remove('is-on'));
+  gsap.fromTo(w, { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: .5, ease: 'power2.out' });
 }
 function dress(k, ok) {
-  const g = $('#w-' + k); if (!g) return;
+  if (!WK) return;
   if (ok) {
-    if (k === 'boots') { const sh = $('#w-shoes'); if (sh) gsap.to(sh, { opacity: 0, duration: .3 }); }
-    gsap.fromTo(g, { opacity: 0, y: k === 'helmet' || k === 'goggles' ? -40 : 30 }, { opacity: 1, y: 0, duration: .55, ease: 'back.out(2)' });
+    WK.equip(k);
     const li = document.querySelector(`[data-slot="${k}"]`); if (li) { li.classList.add('is-on'); gsap.fromTo(li, { scale: .8 }, { scale: 1, duration: .4, ease: 'back.out(3)' }); }
-  } else {
-    g.classList.add('is-bad');
-    gsap.timeline().fromTo(g, { opacity: 0 }, { opacity: 1, duration: .25 }).to(g, { x: 6, duration: .06, repeat: 5, yoyo: true }).to(g, { opacity: 0, duration: .5, delay: 1.2 });
-  }
+  } else WK.wrong(k);
 }
 function finishWorker() {
   const w = $('#worker');
-  gsap.to(w, { scale: .6, opacity: 0, duration: .5, delay: 1.1, ease: 'power2.in', transformOrigin: 'top left', onComplete: () => { w.hidden = true; gsap.set(w, { scale: 1 }); } });
+  gsap.to(w, { scale: .6, opacity: 0, duration: .5, delay: 1.1, ease: 'power2.in', transformOrigin: 'top left', onComplete: () => { w.hidden = true; gsap.set(w, { scale: 1 }); if (WK) WK.stop(); } });
   const pill = $('#ppePill'); pill.innerHTML = PPE_OK.map(k => I[k]).join(''); pill.hidden = false;
   gsap.fromTo(pill, { scale: 0 }, { scale: 1, duration: .5, delay: 1.4, ease: 'back.out(3)' });
 }
@@ -328,11 +338,50 @@ function stepPPE() {
 }
 
 // ---------- step 2: clean ----------
+// ---------- hand tools (picked from the tool box, used in 3D) ----------
+const TOOLSETS = {
+  clean: [{ k: 'brush', t: 'فرشاة سلك', ok: true }, { k: 'file', t: 'مبرد', ok: false, v: 'tool_file_bad' }, { k: 'rag', t: 'قطعة قماش', ok: false, v: 'tool_rag_bad' }],
+  torque: [{ k: 'twrench', t: 'مفتاح عزم', s: '24 mm', ok: true }, { k: 'pipewrench', t: 'مفتاح مواسير', ok: false, v: 'tool_pipewrench_bad' }, { k: 'hammer', t: 'شاكوش', ok: false, v: 'tool_hammer_bad' }],
+};
+const TOOL_REST = { brush: [new THREE.Vector3(0.2, DIM.pipeY + 0.04, 0.2), -0.6], twrench: [new THREE.Vector3(0.16, DIM.pipeY - 0.36, 0.34), 0.3] };
+function toolTiles(set) { return TOOLSETS[set].map(t => `<button class="tile" data-tool="${t.k}">${I[t.k]}<span>${t.t}</span>${t.s ? `<small>${t.s}</small>` : ''}</button>`).join(''); }
+function bindToolTiles(set, cat) {
+  document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
+    if (S.tool || b.classList.contains('is-used')) return;
+    const t = TOOLSETS[set].find(x => x.k === b.dataset.tool);
+    if (!t.ok) { b.classList.add('is-wrong', 'is-used'); sfx.error(); fb(t.v); penalize(cat, 3, 'اختيار عدة غير مناسبة: ' + t.t); return; }
+    b.classList.add('is-picked'); document.querySelectorAll('[data-tool]').forEach(x => x.classList.remove('is-hint'));
+    pickTool(t.k);
+  }));
+}
+function pickTool(k) {
+  S.tool = k; sfx.pick();
+  const obj = k === 'brush' ? wireBrush() : torqueWrench();
+  obj.userData.dynamic = true; S.toolObj = obj; W.scene.add(obj);
+  const [rest, ry] = TOOL_REST[k];
+  obj.rotation.set(0, ry, 0);
+  obj.position.copy(rest).add(new THREE.Vector3(0.25, -0.35, 0.3));
+  gsap.to(obj.position, { x: rest.x, y: rest.y, z: rest.z, duration: .7, ease: 'back.out(1.4)' });
+}
+function toolHome(dur = .45) {
+  const o = S.toolObj; if (!o) return;
+  const [rest, ry] = TOOL_REST[S.tool];
+  gsap.to(o.position, { x: rest.x, y: rest.y, z: rest.z, duration: dur, ease: 'power2.out' });
+  gsap.to(o.rotation, { x: 0, y: ry, z: 0, duration: dur });
+}
+function dropTool() {
+  const o = S.toolObj; if (!o) return;
+  S.toolObj = null; S.tool = null;
+  gsap.to(o.position, { y: o.position.y - 0.5, x: o.position.x + 0.3, duration: .6, ease: 'power2.in', onComplete: () => W.scene.remove(o) });
+}
+function hintTool() { document.querySelectorAll('[data-tool]').forEach(b => { const t = Object.values(TOOLSETS).flat().find(x => x.k === b.dataset.tool); if (t.ok) b.classList.add('is-hint'); }); }
+
 function stepClean() {
   camTo('clean');
   W.dirt.visible = true;
-  S.cleanBase = alphaSum(); S.cleanLast = 0;
-  dock(`<div class="progress"><span>${I.wrench}</span><div class="meter"><i id="cleanBar" style="width:0%"></i></div><b class="mono" id="cleanPct">0%</b></div>`, 'امسح على وجه الفلانشة بصباعك أو بالماوس لحد ما يلمع');
+  S.cleanBase = alphaSum(); S.cleanLast = 0; S.tool = null;
+  dock(toolTiles('clean') + `<div class="progress"><span>${I.brush}</span><div class="meter"><i id="cleanBar" style="width:0%"></i></div><b class="mono" id="cleanPct">0%</b></div>`, 'التقط العُدّة المناسبة، وبعدين امسح بيها وش الفلانشة');
+  bindToolTiles('clean', 'prep');
   addLabel('وجه الفلانشة · Raised Face', new THREE.Vector3(0.01, DIM.pipeY + 0.1, 0));
   $('#stage').classList.add('is-brush');
 }
@@ -347,7 +396,7 @@ function alphaSum() {
   for (const i of ringIdx) s += d[i]; return s;
 }
 function scrub(c, x, y) {
-  const g = c.createRadialGradient(x, y, 0, x, y, 30); g.addColorStop(0, 'rgba(0,0,0,.95)'); g.addColorStop(.6, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  const g = c.createRadialGradient(x, y, 0, x, y, 30); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.55, 'rgba(0,0,0,.85)'); g.addColorStop(1, 'rgba(0,0,0,0)');
   c.fillStyle = g; c.beginPath(); c.arc(x, y, 30, 0, 7); c.fill();
 }
 function brushAt(uv) {
@@ -359,16 +408,17 @@ function brushAt(uv) {
   else scrub(c, x, y);
   S.lastUV = [x, y];
   c.globalCompositeOperation = 'source-over';
+  if (S.brushHit) { emitDust(S.brushHit); const o = S.toolObj; if (o) { o.position.set(S.brushHit.x + 0.002, S.brushHit.y, S.brushHit.z); o.rotation.set((Math.random() - .5) * 0.15, -0.35, (Math.random() - .5) * 0.2); } }
   W.dirtTex.needsUpdate = true;
   if (Math.random() < 0.35) sfx.brush();
   const now = performance.now();
   if (now - S.cleanLast > 120) {
     S.cleanLast = now;
     const pct = Math.min(1, 1 - alphaSum() / S.cleanBase);
-    const shown = Math.min(100, Math.round(pct / 0.8 * 100));
+    const shown = Math.min(100, Math.round(pct / 0.72 * 100));
     $('#cleanBar').style.width = shown + '%'; $('#cleanPct').textContent = shown + '%';
-    if (pct >= 0.8 && !S.cleanDone) {
-      S.cleanDone = true; $('#stage').classList.remove('is-brush');
+    if (pct >= 0.72 && !S.cleanDone) {
+      S.cleanDone = true; $('#stage').classList.remove('is-brush'); S.brushing = false; setTimeout(dropTool, 300);
       gsap.to(W.dirt.material, { opacity: 0, duration: .6, onComplete: () => (W.dirt.visible = false) });
       fb('clean_ok', 'ok', 2200); setTimeout(nextStep, 900);
     }
@@ -480,7 +530,10 @@ function bindStagePointer() {
     const id = STEPS[S.step].id;
     if (id === 'clean' && !S.cleanDone) {
       const h = raycaster.intersectObject(W.dirt, false)[0];
-      if (h) { W.controls.enabled = false; S.brushing = true; brushAt(h.uv); }
+      if (h) {
+        if (S.tool !== 'brush') { fb('tool_brush_pick', 'info'); hintTool(); W.controls.enabled = false; S.noOrbit = true; return; }
+        W.controls.enabled = false; S.brushing = true; S.brushHit = h.point; brushAt(h.uv);
+      }
       return;
     }
     if (id === 'fit') {
@@ -506,9 +559,9 @@ function bindStagePointer() {
   stage.addEventListener('pointermove', e => {
     if (!S || !S.brushing) return;
     setRay(e.clientX, e.clientY);
-    const h = raycaster.intersectObject(W.dirt, false)[0]; if (h) brushAt(h.uv);
+    const h = raycaster.intersectObject(W.dirt, false)[0]; if (h) { S.brushHit = h.point; brushAt(h.uv); }
   });
-  const stop = () => { if (S && S.brushing) { S.brushing = false; S.lastUV = null; W.controls.enabled = true; } };
+  const stop = () => { if (S && S.noOrbit) { S.noOrbit = false; W.controls.enabled = true; } if (S && S.brushing) { S.brushing = false; S.lastUV = null; S.brushHit = null; W.controls.enabled = true; if (S.tool === 'brush') toolHome(); } };
   addEventListener('pointerup', stop); addEventListener('pointercancel', stop);
 }
 
@@ -599,12 +652,32 @@ function starCandidates(seq) {
 }
 function stepTorque() {
   camTo('front');
-  S.torqueSeq = []; S.tight = new Array(8).fill(false);
+  S.torqueSeq = []; S.tight = new Array(8).fill(false); S.tool = null; S.busy = false;
   for (let i = 0; i < 8; i++) { const p = holeWorld(i); p.x = 0.06; addMarker(i, p, ringAmber); }
-  dock(`<div class="progress"><span class="mono" id="tqCount">0 / 8</span><div class="meter"><i id="tqBar" style="width:0%"></i></div></div>`, 'اضغط على الصامولة علشان تربطها بالمفتاح · الترتيب مهم');
+  dock(toolTiles('torque') + `<div class="progress"><span class="mono" id="tqCount">0 / 8</span><div class="meter"><i id="tqBar" style="width:0%"></i></div></div>`, 'التقط المفتاح المناسب، وبعدين اضغط على كل صامولة علشان تربطها · الترتيب مهم');
+  bindToolTiles('torque', 'bolting');
+}
+function wrenchOn(st, done) {
+  const o = S.toolObj, nut = st.userData.front;
+  const p = new THREE.Vector3(st.position.x + nut.position.x + 0.008, st.position.y, st.position.z);
+  const th = Math.atan2(st.position.z, st.position.y - DIM.pipeY);
+  S.busy = true;
+  const tl = gsap.timeline({ onComplete: () => { S.busy = false; done && done(); } });
+  tl.to(o.position, { x: p.x, y: p.y, z: p.z, duration: .4, ease: 'power2.out' }, 0)
+    .to(o.rotation, { x: th, y: 0, z: 0, duration: .4 }, 0);
+  for (let k = 0; k < 3; k++) {
+    tl.add(() => sfx.ratchet(4))
+      .to(o.rotation, { x: th - 0.75, duration: .32, ease: 'power1.inOut' })
+      .to(nut.rotation, { x: `+=${Math.PI * 0.8}`, duration: .32 }, '<')
+      .to(o.rotation, { x: th, duration: .2 });
+  }
+  tl.add(() => sfx.clank()).to(nut.position, { x: nut.position.x - 0.0025, duration: .2 }, '<');
+  const [rest, ry] = TOOL_REST.twrench;
+  tl.to(o.position, { x: rest.x, y: rest.y, z: rest.z, duration: .4, ease: 'power2.inOut' }).to(o.rotation, { x: 0, y: ry, duration: .4 }, '<');
 }
 function tightenNut(i) {
-  if (S.tight[i]) return;
+  if (S.tight[i] || S.busy) return;
+  if (S.tool !== 'twrench') { fb('tool_wrench_pick', 'info'); hintTool(); return; }
   const seq = [...S.torqueSeq, i];
   const cand = starCandidates(seq);
   if (S.mode === 'learn' && !cand.length) {
@@ -617,9 +690,8 @@ function tightenNut(i) {
   }
   S.torqueSeq = seq; S.tight[i] = true;
   const st = S.studs[i];
-  sfx.ratchet(7);
-  gsap.to(st.userData.front.rotation, { x: `+=${Math.PI * 4}`, duration: .7, ease: 'power1.out' });
-  gsap.to(st.userData.front.position, { x: st.userData.front.position.x - 0.0025, duration: .7 });
+  const n0 = S.torqueSeq.length;
+  wrenchOn(st, () => { if (n0 === 8) { dropTool(); setTimeout(nextStep, 500); } });
   const m = S.markers.find(x => x.userData.index === i); if (m) { m.material.map = ringMint; S.pulse = S.pulse.filter(x => x !== m); m.material.opacity = 1; }
   S.markers.forEach(x => { if (!S.tight[x.userData.index]) x.material.map = ringAmber; });
   if (S.mode === 'learn' && S.torqueSeq.length < 8) { const c = starCandidates(S.torqueSeq); highlightNext(c.map(x => x[S.torqueSeq.length])); }
@@ -627,7 +699,6 @@ function tightenNut(i) {
   $('#tqCount').textContent = `${n} / 8`; $('#tqBar').style.width = (n / 8 * 100) + '%';
   if (n === 8) {
     if (S.mode === 'test' && !starCandidates(S.torqueSeq).length) penalize('bolting', 10, 'ترتيب ربط المسامير لم يكن نجمياً (ضغط غير متساوٍ على الحشية)');
-    setTimeout(nextStep, 900);
   }
 }
 function highlightNext(list) {
@@ -747,3 +818,4 @@ function finish() {
 // ---------------- boot ----------------
 renderHome();
 document.fonts.ready.then(() => setTimeout(() => $('#boot').classList.add('is-gone'), 300));
+if (location.search.includes('debug')) window.__ml = () => ({ W, S, THREE, enterStep, finish });

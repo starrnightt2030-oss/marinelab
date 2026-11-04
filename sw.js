@@ -1,5 +1,5 @@
 // Offline cache: everything the app needs is precached on install.
-const CACHE = 'marinelab-v2';
+const CACHE = 'marinelab-v3';
 const FILES = [
   "./",
   "./assets/icon-192.png",
@@ -53,6 +53,7 @@ const FILES = [
   "./js/main.js",
   "./js/scene.js",
   "./js/voice-lines.js",
+  "./js/worker3d.js",
   "./manifest.webmanifest",
   "./vendor/addons/OrbitControls.js",
   "./vendor/addons/RoomEnvironment.js",

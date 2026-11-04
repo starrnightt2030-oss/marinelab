@@ -333,3 +333,35 @@ export function ringSprite(color = '#FFC23D') {
     g.globalAlpha = .35; g.lineWidth = 22; g.beginPath(); g.arc(64, 64, 44, 0, 7); g.stroke();
   });
 }
+
+// ---------- hand tools ----------
+// Wire brush. Origin = centre of the bristle tips; bristles point -X; handle runs along +Z.
+export function wireBrush() {
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0x9a6a3c, roughness: 0.65, metalness: 0 });
+  const bristleMat = new THREE.MeshStandardMaterial({ color: 0xb9c0c8, metalness: 0.95, roughness: 0.3 });
+  const block = mesh(new THREE.BoxGeometry(0.014, 0.032, 0.105), wood); block.position.set(0.024, 0, 0); g.add(block);
+  const bristle = new THREE.CylinderGeometry(0.0008, 0.0008, 0.018, 4); bristle.rotateZ(Math.PI / 2);
+  const inst = new THREE.InstancedMesh(bristle, bristleMat, 6 * 18); const m4 = new THREE.Matrix4(); let n = 0;
+  for (let i = 0; i < 6; i++) for (let j = 0; j < 18; j++) { m4.makeTranslation(0.009 + (Math.random() - .5) * 0.002, -0.0125 + i * 0.005, -0.046 + j * 0.0054); inst.setMatrixAt(n++, m4); }
+  inst.castShadow = true; g.add(inst);
+  const handle = mesh(new THREE.BoxGeometry(0.012, 0.022, 0.17), wood); handle.position.set(0.034, 0, 0.13); handle.rotation.y = -0.12; g.add(handle);
+  const hole = mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.014, 12), MAT.dark); hole.rotation.z = Math.PI / 2; hole.position.set(0.045, 0, 0.2); g.add(hole);
+  g.userData.kind = 'brush';
+  return g;
+}
+
+// Click-type torque wrench. Origin = socket mouth (sits on the nut face); socket axis -X; handle along +Y.
+export function torqueWrench() {
+  const g = new THREE.Group();
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xd5dbe2, metalness: 1, roughness: 0.18 });
+  const grip = new THREE.MeshStandardMaterial({ color: 0xc62a2f, metalness: 0.1, roughness: 0.55 });
+  const socket = mesh(new THREE.CylinderGeometry(0.0175, 0.0175, 0.034, 24), chrome); socket.rotation.z = Math.PI / 2; socket.position.x = 0.017; g.add(socket);
+  const head = mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.026, 32), chrome); head.rotation.z = Math.PI / 2; head.position.x = 0.046; g.add(head);
+  const shaft = mesh(new THREE.CylinderGeometry(0.0095, 0.011, 0.3, 20), chrome); shaft.position.set(0.046, 0.16, 0); g.add(shaft);
+  const scale = mesh(new THREE.CylinderGeometry(0.0115, 0.0115, 0.06, 20), MAT.dark); scale.position.set(0.046, 0.2, 0); g.add(scale);
+  const rubber = mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.11, 20), grip); rubber.position.set(0.046, 0.33, 0); g.add(rubber);
+  const cap = mesh(new THREE.SphereGeometry(0.014, 16, 10), grip); cap.position.set(0.046, 0.385, 0); g.add(cap);
+  g.userData.kind = 'wrench';
+  return g;
+}
