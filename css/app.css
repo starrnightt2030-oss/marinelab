@@ -489,3 +489,20 @@ svg.symsvg{fill:#1B1D20;stroke:none;background:#F4F2EC;border-radius:10px;flex:n
 .floatbar{position:absolute;z-index:3;bottom:2.4rem;left:50%;transform:translateX(-50%);width:min(30rem,90%);display:flex;gap:.5rem}
 .floatbar .holdbtn{flex:1 1 0;margin:0;font-size:.98rem}
 .holdbtn--alt{background:linear-gradient(135deg,#4a5873,#2c3650)!important;box-shadow:none!important}
+
+/* ---- library callouts: numbers outside the tool + thin leader lines ---- */
+.lib__stage svg.leaders{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;stroke:none;fill:none}
+.leader{fill:none;stroke:rgba(230,240,255,.85);stroke-width:1.2;stroke-linejoin:round}
+.leader.is-back{stroke:rgba(230,240,255,.35);stroke-dasharray:4 4}
+.leader.is-on{stroke:var(--amber);stroke-width:1.8}
+.leader-dot{fill:#fff;stroke:#0b1630;stroke-width:1.2}
+.lib__stage .pin{width:1.75rem;height:1.75rem;font-size:.78rem;z-index:2}
+.lib__stage .pin.is-back{opacity:.55}
+.wheretags{display:flex;flex-wrap:wrap;gap:.35rem}
+.wheretags span{padding:.2rem .6rem;border-radius:999px;font-size:.78rem;background:rgba(61,217,255,.1);border:1px solid rgba(61,217,255,.35);color:#bff3ff}
+.sizetbl{overflow-x:auto;border-radius:12px;border:1px solid var(--line)}
+.sizetbl table{width:100%;border-collapse:collapse;font-size:.8rem}
+.sizetbl th{position:sticky;top:0;background:rgba(47,124,246,.22);color:#e8f3ff;font-weight:600;padding:.4rem .45rem;text-align:center;white-space:nowrap}
+.sizetbl td{padding:.32rem .45rem;text-align:center;border-top:1px solid var(--line);font-family:var(--f-mono)}
+.sizetbl tr:nth-child(even) td{background:rgba(255,255,255,.03)}
+.small{font-size:.78rem}

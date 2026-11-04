@@ -1,5 +1,6 @@
 // Shared UI layer: DOM helpers, icons, profile, narration, station panel, scoring session, result screen.
 import { audio, sfx, speak, stopSpeaking } from './audio.js';
+import { textKey, normText } from './voice-key.js';
 import { VOICE } from './voice-lines.js';
 
 export const gsap = window.gsap;
@@ -77,6 +78,15 @@ export function playLine(id) {
   clip = a; a.onplay = on; a.onended = off; a.onerror = fallback;
   a.play().catch(fallback);
 }
+/** Speak any sentence: its Shakir clip if generated (assets/voice/x<hash>.mp3), else the device's Arabic voice. */
+export function sayText(text) {
+  stopVoice();
+  const t = normText(text); if (!audio.on || !t) return;
+  const a = new Audio(`assets/voice/${textKey(t)}.mp3`);
+  let fell = false;
+  const fallback = () => { if (fell || clip !== a) return; fell = true; clip = null; speak(t); };
+  clip = a; a.onerror = fallback; a.play().catch(fallback);
+}
 let lastSay = null;
 /** Show + speak a narration line (VOICE id) in the side panel. */
 export function say(id) { lastSay = id; const t = $('#sayText'); if (t) t.textContent = VOICE[id]?.t || id; playLine(id); }
@@ -84,14 +94,15 @@ export function replay() { if (lastSay) say(lastSay); }
 
 // ---------------- panel feedback (never covers the exercise) ----------------
 let msgTimer = 0;
-export function toast(msg, kind = 'err', ms = 4200) {
+export function toast(msg, kind = 'err', ms = 4200, speakIt = true) {
   const t = $('#toast'); if (!t) return;
   t.className = 'msg msg--' + kind;
   t.innerHTML = (kind === 'ok' ? I.ok : kind === 'info' ? I.info : I.warn) + `<span>${msg}</span>`; t.hidden = false;
   gsap.fromTo(t, { y: -8, opacity: 0 }, { y: 0, opacity: 1, duration: .3 });
+  if (speakIt) sayText(msg);
   clearTimeout(msgTimer); msgTimer = setTimeout(() => gsap.to(t, { opacity: 0, duration: .3, onComplete: () => (t.hidden = true) }), ms);
 }
-export function fb(id, kind = 'err', ms) { toast(VOICE[id]?.t || id, kind, ms); playLine(id); }
+export function fb(id, kind = 'err', ms) { toast(VOICE[id]?.t || id, kind, ms, !VOICE[id]); if (VOICE[id]) playLine(id); }
 
 /** Tools / parts / actions area of the side panel. */
 export function dock(items, label = '') {
@@ -187,6 +198,7 @@ export function renderResult(station, ex = {}) {
 /** Two-to-four choice question inside the panel. Resolves with the chosen value. */
 export function ask(question, options) {
   return new Promise(resolve => {
+    sayText(question);
     dock(options.map((o, i) => `<button class="choice" data-i="${i}">${o.t}</button>`).join(''), question);
     $$('#dock .choice').forEach(b => b.addEventListener('click', () => { sfx.tap(); resolve(options[+b.dataset.i]); }, { once: true }));
   });

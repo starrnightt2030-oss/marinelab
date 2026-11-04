@@ -197,7 +197,7 @@ async function ask3(q, opts, cat) {
   for (;;) {
     const r = await choose(q, shuffle(opts));
     if (!S) return;
-    if (r.ok) { sfx.ok(); r.el.classList.add('is-right'); wmsg(r.why, 'ok', 4000); await wait(1700); return; }
+    if (r.ok) { sfx.ok(); r.el.classList.add('is-right'); wmsg(r.why, 'ok', 4000); await wait(Math.min(7000, 1200 + r.why.length * 65)); return; }
     sfx.error(); r.el.classList.add('is-wrong'); wmsg(r.why, 'info', 5000);
     wpenalize(cat, first ? 4 : 3, 'إجابة خاطئة: ' + q); first = false;
     await wait(1600);

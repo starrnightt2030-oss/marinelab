@@ -94,8 +94,10 @@ export const VOICE = {
 };
 
 // Tools library narration: one line per tool (name + description) and one per part.
-import { ITEMS as LIB } from './library-data.js';
+import { ITEMS as LIB0 } from './library-data.js';
+import { CITEMS } from './components-data.js';
+const LIB = [...LIB0, ...CITEMS];
 LIB.forEach(it => {
-  VOICE[`lib_${it.id}`] = { t: `${it.t}. ${it.d}` };
-  it.parts.forEach((p, i) => { VOICE[`lib_${it.id}_${i}`] = { t: `${p.n}: ${p.d}` }; });
+  VOICE[`lib_${it.id}`] = { t: `${it.t}. ${it.d} بيُستخدم في: ${it.use.join('، ')}.` };
+  it.parts.forEach((p, i) => { VOICE[`lib_${it.id}_${i}`] = { t: p.d ? `${p.n}: ${p.d}` : p.n }; });
 });

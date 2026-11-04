@@ -150,7 +150,7 @@ async function ask(q, opts, cat, pts = 4) {
   let first = true;
   for (;;) {
     const r = await choose(q, shuffle(opts)); if (!S) return null;
-    if (r.ok) { sfx.ok(); r.el.classList.add('is-right'); wmsg(r.why, 'ok', 4000); await wait(1500); return r; }
+    if (r.ok) { sfx.ok(); r.el.classList.add('is-right'); wmsg(r.why, 'ok', 4000); await wait(Math.min(7000, 1200 + r.why.length * 65)); return r; }
     sfx.error(); r.el.classList.add('is-wrong'); wmsg(r.why, 'info', 5200); wpenalize(cat, first ? pts : Math.ceil(pts / 2), 'إجابة خاطئة: ' + q.replace(/<[^>]+>/g, '')); first = false; await wait(1400);
   }
 }

@@ -12,34 +12,57 @@ function tex(w, h, draw, { repeat = [1, 1], srgb = true } = {}) {
   if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 const M = {};
+/** Turn a grey height canvas into a tangent-space normal map (gives real surface relief under light). */
+function normalTex(w, h, draw, strength = 2, repeat = [1, 1]) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h);
+  const src = g.getImageData(0, 0, w, h).data, out = g.createImageData(w, h), H = (x, y) => src[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength, l = Math.hypot(dx, dy, 1), i = (y * w + x) * 4;
+    out.data[i] = (-dx / l * 0.5 + 0.5) * 255; out.data[i + 1] = (dy / l * 0.5 + 0.5) * 255; out.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; out.data[i + 3] = 255;
+  }
+  g.putImageData(out, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); t.anisotropy = 8; return t;
+}
+const noise = (g, w, h, n, size, lo = 90, hi = 170) => { g.fillStyle = 'rgb(128,128,128)'; g.fillRect(0, 0, w, h); for (let i = 0; i < n; i++) { const v = lo + Math.random() * (hi - lo) | 0; g.fillStyle = `rgb(${v},${v},${v})`; const r = size * (0.5 + Math.random()); g.beginPath(); g.arc(Math.random() * w, Math.random() * h, r, 0, 7); g.fill(); } };
 function mats() {
   if (M.steel) return M;
-  const brushed = tex(512, 64, (g, w, h) => { g.fillStyle = '#8c949c'; g.fillRect(0, 0, w, h); for (let i = 0; i < 900; i++) { g.globalAlpha = Math.random() * 0.25; g.fillStyle = Math.random() > .5 ? '#d8dee4' : '#5a626a'; g.fillRect(Math.random() * w, Math.random() * h, 20 + Math.random() * 160, 1); } }, { srgb: false });
-  const knurl = tex(64, 64, (g, w, h) => { g.fillStyle = '#808080'; g.fillRect(0, 0, w, h); g.strokeStyle = '#fff'; g.lineWidth = 3; for (let i = -w; i < w * 2; i += 8) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); g.beginPath(); g.moveTo(i, h); g.lineTo(i + h, 0); g.stroke(); } }, { repeat: [4, 4], srgb: false });
-  const grain = tex(512, 128, (g, w, h) => { g.fillStyle = '#9b6a3e'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 2) { g.globalAlpha = 0.25 + Math.random() * 0.3; g.fillStyle = Math.random() > .5 ? '#7a4d29' : '#b5814f'; g.fillRect(0, y + Math.sin(y) * 2, w, 1 + Math.random() * 2); } });
-  const rubberN = tex(128, 128, (g, w, h) => { g.fillStyle = '#808080'; g.fillRect(0, 0, w, h); for (let i = 0; i < 2000; i++) { g.fillStyle = Math.random() > .5 ? '#9a9a9a' : '#666'; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); } }, { repeat: [3, 3], srgb: false });
-  const cast = tex(256, 256, (g, w, h) => { g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, w, h); for (let i = 0; i < 6000; i++) { g.fillStyle = `rgba(${Math.random() > .5 ? 255 : 0},${Math.random() > .5 ? 255 : 0},${Math.random() > .5 ? 255 : 0},0.08)`; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); } }, { repeat: [2, 2], srgb: false });
-  M.tex = { brushed, knurl, grain, rubberN, cast };
-  const P = (o) => new THREE.MeshPhysicalMaterial(o);
+  // roughness maps
+  const brushed = tex(512, 64, (g, w, h) => { g.fillStyle = '#8c949c'; g.fillRect(0, 0, w, h); for (let i = 0; i < 1400; i++) { g.globalAlpha = Math.random() * 0.25; g.fillStyle = Math.random() > .5 ? '#d8dee4' : '#5a626a'; g.fillRect(Math.random() * w, Math.random() * h, 20 + Math.random() * 200, 1); } }, { srgb: false });
+  const wear = tex(256, 256, (g, w, h) => { g.fillStyle = '#7a7a7a'; g.fillRect(0, 0, w, h); for (let i = 0; i < 160; i++) { g.strokeStyle = `rgba(${Math.random() > .5 ? 200 : 60},${Math.random() > .5 ? 200 : 60},${Math.random() > .5 ? 200 : 60},.35)`; g.lineWidth = Math.random() * 1.2; g.beginPath(); const x = Math.random() * w, y = Math.random() * h, a = Math.random() * 6.3, L = 6 + Math.random() * 40; g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke(); } }, { srgb: false, repeat: [2, 2] });
+  const grain = tex(1024, 256, (g, w, h) => {
+    const grd = g.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, '#a87444'); grd.addColorStop(.5, '#c38d58'); grd.addColorStop(1, '#9a6538'); g.fillStyle = grd; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 1.5) { g.globalAlpha = 0.12 + Math.random() * 0.22; g.strokeStyle = Math.random() > .5 ? '#6e421f' : '#d9a56d'; g.lineWidth = 0.6 + Math.random() * 1.6; g.beginPath(); g.moveTo(0, y); for (let x = 0; x <= w; x += 32) g.lineTo(x, y + Math.sin(x / 90 + y / 13) * 2.2); g.stroke(); }
+    g.globalAlpha = 0.35; for (let k = 0; k < 3; k++) { const x = Math.random() * w, y = Math.random() * h; const r = g.createRadialGradient(x, y, 1, x, y, 18); r.addColorStop(0, '#4a2a12'); r.addColorStop(1, 'rgba(74,42,18,0)'); g.fillStyle = r; g.fillRect(x - 20, y - 20, 40, 40); }
+  });
+  // normal maps
+  const knurlN = normalTex(128, 128, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); g.strokeStyle = '#fff'; g.lineWidth = 4; for (let i = -w; i < w * 2; i += 12) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); g.beginPath(); g.moveTo(i, h); g.lineTo(i + h, 0); g.stroke(); } }, 3, [5, 5]);
+  const rubberN = normalTex(256, 256, (g, w, h) => noise(g, w, h, 5000, 1.4), 1.6, [4, 4]);
+  const castN = normalTex(256, 256, (g, w, h) => noise(g, w, h, 4000, 2.2, 70, 190), 2.2, [3, 3]);
+  const peelN = normalTex(256, 256, (g, w, h) => { noise(g, w, h, 1800, 5, 110, 150); g.filter = 'blur(2px)'; g.drawImage(g.canvas, 0, 0); }, 1.2, [4, 4]);
+  const scratchN = normalTex(256, 256, (g, w, h) => { g.fillStyle = '#808080'; g.fillRect(0, 0, w, h); for (let i = 0; i < 400; i++) { g.strokeStyle = Math.random() > .5 ? '#9a9a9a' : '#666'; g.lineWidth = .8; g.beginPath(); const x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); g.lineTo(x + 30 + Math.random() * 120, y + (Math.random() - .5) * 3); g.stroke(); } }, 1, [2, 2]);
+  const woodN = normalTex(512, 128, (g, w, h) => { g.fillStyle = '#808080'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 2) { g.strokeStyle = Math.random() > .5 ? '#8c8c8c' : '#747474'; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + Math.sin(y) * 2); g.stroke(); } }, 1.5);
+  M.tex = { brushed, wear, grain, knurlN, rubberN, castN, peelN, scratchN };
+  const P = o => new THREE.MeshPhysicalMaterial(o);
+  const paint = (color, o = {}) => P({ color, metalness: 0.05, roughness: 0.42, roughnessMap: wear, clearcoat: 1, clearcoatRoughness: 0.12, clearcoatNormalMap: peelN, clearcoatNormalScale: new THREE.Vector2(.25, .25), ...o });
+  const metal = (color, rough, o = {}) => P({ color, metalness: 1, roughness: rough, roughnessMap: brushed, normalMap: scratchN, normalScale: new THREE.Vector2(.15, .15), anisotropy: 0.6, ...o });
   Object.assign(M, {
-    steel: new THREE.MeshStandardMaterial({ color: 0xc7cdd3, metalness: 1, roughness: 0.32, roughnessMap: brushed }),
-    chrome: new THREE.MeshStandardMaterial({ color: 0xeef2f5, metalness: 1, roughness: 0.08 }),
-    satin: new THREE.MeshStandardMaterial({ color: 0xd9dee3, metalness: 1, roughness: 0.22, roughnessMap: brushed }),
-    oxide: new THREE.MeshStandardMaterial({ color: 0x2b2f35, metalness: 0.85, roughness: 0.42 }),
-    knurled: new THREE.MeshStandardMaterial({ color: 0xb9c0c7, metalness: 1, roughness: 0.35, bumpMap: knurl, bumpScale: 1.4 }),
-    red: P({ color: 0xb8161c, metalness: 0.2, roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.2 }),
-    blue: P({ color: 0x1c4fb8, metalness: 0.2, roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.2 }),
-    yellow: P({ color: 0xf2b705, metalness: 0.05, roughness: 0.4, clearcoat: 0.6 }),
-    orange: P({ color: 0xe8661a, metalness: 0.1, roughness: 0.4, clearcoat: 0.5 }),
-    alu: new THREE.MeshStandardMaterial({ color: 0xb8c2cc, metalness: 0.9, roughness: 0.38, roughnessMap: brushed }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x16191d, metalness: 0, roughness: 0.9, bumpMap: rubberN, bumpScale: 0.6 }),
-    rubberRed: new THREE.MeshStandardMaterial({ color: 0x8f1218, metalness: 0, roughness: 0.85, bumpMap: rubberN, bumpScale: 0.5 }),
-    wood: new THREE.MeshStandardMaterial({ map: grain, roughness: 0.55, metalness: 0 }),
-    brass: new THREE.MeshStandardMaterial({ color: 0xd2a84d, metalness: 1, roughness: 0.28 }),
-    castIron: new THREE.MeshStandardMaterial({ color: 0x4a5460, metalness: 0.55, roughness: 0.7, bumpMap: cast, bumpScale: 0.8 }),
-    castBlue: new THREE.MeshStandardMaterial({ color: 0x2a5aa8, metalness: 0.3, roughness: 0.55, bumpMap: cast, bumpScale: 0.6 }),
-    glass: new THREE.MeshPhysicalMaterial({ color: 0xb8ff6a, transmission: 0.7, roughness: 0.05, thickness: 0.004, transparent: true, opacity: 0.85 }),
-    black: new THREE.MeshStandardMaterial({ color: 0x0f1114, metalness: 0.3, roughness: 0.6 }),
+    steel: metal(0xc3c9cf, 0.34),
+    chrome: P({ color: 0xf2f5f8, metalness: 1, roughness: 0.06, normalMap: scratchN, normalScale: new THREE.Vector2(.05, .05) }),
+    satin: metal(0xd6dbe0, 0.24, { anisotropy: 0.8 }),
+    oxide: P({ color: 0x24282d, metalness: 0.8, roughness: 0.48, roughnessMap: wear, normalMap: castN, normalScale: new THREE.Vector2(.2, .2) }),
+    forged: P({ color: 0x3a3f46, metalness: 0.85, roughness: 0.4, roughnessMap: wear, normalMap: castN, normalScale: new THREE.Vector2(.35, .35) }),
+    ground: metal(0xdfe3e7, 0.18, { anisotropy: 1 }),
+    knurled: P({ color: 0xb9c0c7, metalness: 1, roughness: 0.32, normalMap: knurlN, normalScale: new THREE.Vector2(1.4, 1.4) }),
+    red: paint(0xb3141b), blue: paint(0x1b4cb3), yellow: paint(0xf0b400), orange: paint(0xe4621a),
+    alu: metal(0xbcc5ce, 0.36, { anisotropy: 0.9 }),
+    rubber: P({ color: 0x15181c, metalness: 0, roughness: 0.82, normalMap: rubberN, normalScale: new THREE.Vector2(.9, .9), sheen: 0.4, sheenColor: 0x333a44 }),
+    rubberRed: P({ color: 0x9a141b, metalness: 0, roughness: 0.78, normalMap: rubberN, normalScale: new THREE.Vector2(.8, .8), sheen: 0.4, sheenColor: 0x552222 }),
+    wood: P({ map: grain, roughness: 0.5, metalness: 0, normalMap: woodN, normalScale: new THREE.Vector2(.5, .5), clearcoat: 0.5, clearcoatRoughness: 0.35 }),
+    brass: metal(0xd4a94c, 0.26),
+    castIron: P({ color: 0x48525d, metalness: 0.55, roughness: 0.68, normalMap: castN, normalScale: new THREE.Vector2(.9, .9) }),
+    castBlue: paint(0x2556a8, { roughness: 0.55, clearcoat: 0.5, normalMap: castN, normalScale: new THREE.Vector2(.6, .6) }),
+    glass: P({ color: 0xb8ff6a, transmission: 0.7, roughness: 0.05, thickness: 0.004, transparent: true, opacity: 0.85 }),
+    black: P({ color: 0x0f1114, metalness: 0.3, roughness: 0.55, roughnessMap: wear }),
   });
   return M;
 }
@@ -302,3 +325,4 @@ const ANCH = {
 };
 export { CATS };
 export const ITEMS = DATA.map(d => ({ ...d, build: B[d.b], parts: d.parts.map((p, i) => ({ ...p, at: ANCH[d.id]?.[i] || p.at })) }));
+export { mats, tex, normalTex, rbox, cyl, sph, put, shape, ext, lathe, rr, scalePlane };
