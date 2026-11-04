@@ -274,9 +274,14 @@ svg{width:1.25rem;height:1.25rem;fill:none;stroke:currentColor;stroke-width:2;st
 .lib__view{position:relative;min-height:0;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:radial-gradient(ellipse at 50% 60%,#11285a,#050b1a 70%)}
 .lib__stage{position:absolute;inset:0;touch-action:none}
 .lib__stage canvas{display:block;width:100%;height:100%}
-.lib__tools{position:absolute;top:.7rem;inset-inline-end:.7rem;display:flex;flex-direction:column;gap:.4rem}
+.lib__tools{position:absolute;top:.7rem;inset-inline-end:.7rem;display:flex;flex-direction:column;align-items:flex-end;gap:.4rem;z-index:3}
 .lib__hint{position:absolute;bottom:.6rem;inset-inline:0;margin:0;text-align:center;font-size:.78rem;color:var(--muted);pointer-events:none}
 .pin{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:1.9rem;height:1.9rem;border-radius:50%;border:2px solid #fff;background:var(--blue);color:#fff;font-family:var(--f-mono);font-size:.8rem;font-weight:700;box-shadow:0 0 0 4px rgba(47,124,246,.3),0 4px 12px rgba(0,0,0,.5);z-index:2}
+.pin.is-back{opacity:.35}
+.libbtn{display:inline-flex;align-items:center;gap:.4rem;min-height:var(--tap);padding:0 .9rem;border-radius:12px;border:1px solid var(--line);background:var(--glass2);font-size:.85rem;font-weight:600}
+.libbtn[aria-pressed="true"]{border-color:var(--cyan);background:rgba(61,217,255,.15);color:#d9f8ff}
+.lib__title{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+.lib__info h3 small{font-weight:400;font-size:.72rem}
 .pin.is-on{background:var(--amber);color:#2a1700;box-shadow:0 0 0 6px rgba(255,194,61,.35)}
 .lib__info{min-height:0;overflow-y:auto;padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.45rem}
 .lib__info h2{margin:0;font-size:1.45rem;line-height:1.3}
@@ -295,7 +300,8 @@ svg{width:1.25rem;height:1.25rem;fill:none;stroke:currentColor;stroke-width:2;st
 
 /* ---------- drawing ---------- */
 .dr__sheet{min-height:0;overflow:auto;border-radius:var(--r);background:#f4f2ec;border:1px solid var(--line);padding:.6rem}
-.dr__sheet svg.iso{width:100%;height:auto;display:block;min-width:36rem;fill:#1B1D20;stroke:none}
+.dr__sheet{display:flex;align-items:center;justify-content:center}
+.dr__sheet svg.iso{width:100%;height:100%;max-height:100%;display:block;min-width:36rem;fill:#1B1D20;stroke:none}
 .iso .hit{fill:transparent;stroke:transparent;cursor:pointer;transition:fill .2s}
 .iso .hit:hover{fill:rgba(47,124,246,.14);stroke:rgba(47,124,246,.6);stroke-width:2}
 .iso .hit.is-right{fill:rgba(46,230,166,.3);stroke:#1a9d70;stroke-width:3}
@@ -429,3 +435,24 @@ svg{width:1.25rem;height:1.25rem;fill:none;stroke:currentColor;stroke-width:2;st
   .chip-btn #chipName{display:none}
   .seg{grid-template-columns:1fr}
 }
+
+/* ---- drawings v2: symbols, legend, study grid ---- */
+.seg.seg--wrap{grid-template-columns:repeat(3,minmax(0,1fr))}
+svg.symsvg{fill:#1B1D20;stroke:none;background:#F4F2EC;border-radius:10px;flex:none}
+.qsym{display:flex;justify-content:center;margin-top:.6rem}
+.qsym svg.symsvg{box-shadow:0 0 0 1px var(--line2),0 10px 30px rgba(0,0,0,.35)}
+.legend{border:1px solid var(--line);border-radius:12px;padding:.5rem .7rem;background:rgba(0,0,0,.18)}
+.legend summary{cursor:pointer;font-size:.88rem;color:var(--muted);min-height:2rem;display:flex;align-items:center}
+.legend ul{list-style:none;margin:.5rem 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.35rem}
+.legend li{display:flex;align-items:center;gap:.45rem;font-size:.8rem}
+.symgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr));gap:.6rem;padding:.3rem}
+.symcard{display:flex;flex-direction:column;align-items:center;gap:.25rem;padding:.6rem .4rem;border-radius:14px;border:1.5px solid #d9d5ca;background:#fbfaf6;color:#1B1D20;cursor:pointer;font:inherit;text-align:center;transition:transform .15s,border-color .15s,box-shadow .15s}
+.symcard:hover{transform:translateY(-2px);border-color:#2F7CF6}
+.symcard.is-on{border-color:#1a9d70;box-shadow:0 0 0 3px rgba(46,230,166,.35)}
+.symcard b{font-size:.84rem;line-height:1.35}
+.symcard small{font-family:var(--f-mono);font-size:.66rem;color:#6b6a63}
+.symcard svg.symsvg{background:transparent}
+.choice.is-right{border-color:var(--mint)!important;background:rgba(46,230,166,.14)!important}
+.choice.is-wrong{border-color:var(--red)!important;opacity:.6}
+@media (max-width:760px){.seg.seg--wrap{grid-template-columns:repeat(2,minmax(0,1fr))}.legend ul{grid-template-columns:1fr}}
+.dr__sheet .symgrid{width:100%;align-self:flex-start}

@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/RoomEnvironment.js';
 import { sfx, unlockAudio } from '../audio.js';
 import { $, $$, gsap, I, renderResult, shuffle, SES } from '../ui.js';
+import { createWorker } from '../worker3d.js';
+import { ITEMS } from '../tools3d.js';
 import { openWork, closeWork, workSteps, wsay, wreplay, wmsg, wpenalize, body, choose } from '../work.js';
 
 const OD = 0.0603, WALL = 3.91, ID = OD - 2 * WALL / 1000, CUT_X = 0.2, FEED = 0.36;   // DN50 Sch40 — mm for wall/feed
@@ -15,7 +17,7 @@ const ICON = {
   watch: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="9"/><path d="M24 19v5l3 3M19 16l1-10h8l1 10M19 32l1 10h8l1-10"/></svg>',
   scarf: '<svg viewBox="0 0 48 48"><path d="M10 10c8 4 20 4 28 0v8c-8 4-20 4-28 0z"/><path d="M28 19l4 22-6-3-4 4-2-22"/></svg>',
 };
-let S = null, V = null;
+let S = null, V = null, WK = null;
 const at = (m, x, y, z) => { m.position.set(x, y, z); return m; };
 const rot = (m, x, y, z) => { m.rotation.set(x, y, z); return m; };
 
@@ -49,9 +51,18 @@ function buildScene(host) {
   vise.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.03, 0.16), paint), 0, -0.12, 0));
   [-1, 1].forEach(k => { const p = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.18, 0.03), paint); p.position.set(0, -0.03, k * 0.06); vise.add(p); });
   const yoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, 0.16), paint); yoke.position.y = 0.065; vise.add(yoke);
-  const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 16), chrome); screw.position.y = 0.11; vise.add(screw);
-  const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 12), chrome); bar.rotation.x = Math.PI / 2; bar.position.y = 0.17; vise.add(bar);
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.016, 0.07), chrome); jaw.position.y = OD / 2 + 0.008 + 0.02; vise.add(jaw);
+  // the screw, its T-handle and the upper jaw travel together; the student turns the handle by hand
+  const grip = new THREE.MeshStandardMaterial({ color: 0xffc23d, metalness: 0.2, roughness: 0.45, emissive: 0x6a4300, emissiveIntensity: 0 });
+  const screwG = new THREE.Group(); vise.add(screwG);
+  const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.13, 16), chrome); thread.position.y = 0.115; screwG.add(thread);
+  for (let k = 0; k < 14; k++) screwG.add(at(rot(new THREE.Mesh(new THREE.TorusGeometry(0.0083, 0.0011, 4, 16), chrome), Math.PI / 2, 0, 0), 0, 0.06 + k * 0.008, 0));
+  const handle = new THREE.Group(); handle.position.y = 0.185; screwG.add(handle);
+  handle.add(new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.02, 20), chrome));
+  handle.add(rot(new THREE.Mesh(new THREE.CylinderGeometry(0.0055, 0.0055, 0.2, 14), chrome), Math.PI / 2, 0, 0));
+  [-1, 1].forEach(k => { handle.add(at(rot(new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.045, 16), grip), Math.PI / 2, 0, 0), 0, 0, k * 0.085)); handle.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.0095, 16, 10), grip), 0, 0, k * 0.108)); });
+  const handleHit = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.06, 16), new THREE.MeshBasicMaterial({ visible: false })); handle.add(handleHit);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.016, 0.07), chrome); jaw.position.y = OD / 2 + 0.008 + 0.02; screwG.add(jaw);
+  jaw.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.004, 0.07), new THREE.MeshStandardMaterial({ color: 0x3a3f46, metalness: .7, roughness: .7 })), 0, -0.009, 0));
   vise.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.016, 0.07), chrome), 0, -OD / 2 - 0.008, 0));
   vise.position.x = -0.12; scene.add(vise);
   // pipe (two parts so the off-cut can fall away)
@@ -61,16 +72,18 @@ function buildScene(host) {
   const mark = new THREE.Mesh(new THREE.TorusGeometry(OD / 2 + 0.0004, 0.0009, 8, 64), new THREE.MeshBasicMaterial({ color: 0xff4d57 })); mark.rotation.y = Math.PI / 2; mark.position.x = CUT_X; scene.add(mark);
   const groove = new THREE.Mesh(new THREE.TorusGeometry(OD / 2, 0.0004, 8, 64), new THREE.MeshStandardMaterial({ color: 0x15181d, roughness: 1 })); groove.rotation.y = Math.PI / 2; groove.position.x = CUT_X; scene.add(groove);
   const burr = new THREE.Mesh(new THREE.TorusGeometry(ID / 2 - 0.0012, 0.0016, 8, 48), new THREE.MeshStandardMaterial({ color: 0x8e969f, metalness: 0.9, roughness: 0.5 })); burr.rotation.y = Math.PI / 2; burr.position.x = CUT_X - 0.001; burr.visible = false; scene.add(burr);
-  // pipe cutter around the mark
+  // pipe cutter around the mark — the same detailed model as the tools library, fitted to this pipe
   const cutter = new THREE.Group();
-  const frame = new THREE.Group();
-  frame.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.11), red), 0, OD / 2 + 0.035, 0));
-  frame.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.02), red), 0, 0, 0.055));
-  frame.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.02, 0.11), red), 0, -OD / 2 - 0.03, 0));
-  [-1, 1].forEach(k => { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.022, 16), chrome); r.rotation.z = Math.PI / 2; r.position.set(0, -OD / 2 - 0.006, k * 0.018); frame.add(r); });
-  const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.003, 32), chrome); wheel.rotation.z = Math.PI / 2; wheel.position.y = OD / 2 + 0.012; frame.add(wheel);
-  const feedScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.12, 12), chrome); feedScrew.position.y = OD / 2 + 0.1; frame.add(feedScrew);
-  const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.06, 16), new THREE.MeshStandardMaterial({ color: 0x1d2127, roughness: 0.8 })); knob.position.y = OD / 2 + 0.17; frame.add(knob);
+  const frame = ITEMS.find(i => i.id === 'cutter').build();
+  frame.remove(frame.children[frame.children.length - 1]);          // drop the library's demo pipe
+  frame.rotation.y = Math.PI / 2; frame.position.y = 0.016 + 0.0002;  // library pipe axis (y = -0.016, along z) → world X axis
+  frame.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  const wheel = frame.children[4];
+  // feed knob (rubber T-handle on the feed screw) — the student turns it a quarter turn by hand
+  const knob = frame.children[6];
+  const knobMat = knob.material.clone(); knobMat.emissive = new THREE.Color(0x6a4300); knobMat.emissiveIntensity = 0; knob.material = knobMat;
+  const tick = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.064, 0.004), new THREE.MeshBasicMaterial({ color: 0xffc23d })); tick.position.set(0, 0, 0.0135); knob.add(tick);
+  const knobHit = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), new THREE.MeshBasicMaterial({ visible: false })); knob.add(knobHit);
   cutter.add(frame); cutter.position.x = CUT_X; scene.add(cutter);
   // reamer + grinder (shown later)
   const reamer = new THREE.Group();
@@ -99,7 +112,7 @@ function buildScene(host) {
     renderer.render(scene, camera); requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop); setTimeout(resize, 30);
-  V = { renderer, scene, camera, setCam, keep, off, mark, groove, burr, cutter, wheel, knob, reamer, jaw, screw, setSpark: n => (spark = n), stop() { running = false; renderer.dispose(); }, dom: renderer.domElement };
+  V = { renderer, scene, camera, setCam, keep, off, mark, groove, burr, cutter, wheel, knob, knobHit, knobMat, reamer, jaw, screwG, handle, handleHit, grip, setSpark: n => (spark = n), stop() { running = false; renderer.dispose(); }, dom: renderer.domElement };
   return V;
 }
 
@@ -114,6 +127,25 @@ function circleDrag(onTurn) {
   el.addEventListener('pointerdown', down); el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   return () => { el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
 }
+/** Grab a 3D part and turn it: pointer must start on `hit` (or within 70px of it); the twist is measured around `centre()` on screen. */
+const ray = new THREE.Raycaster();
+function grabTurn(hit, centreW, onTurn, onMiss) {
+  const el = V.dom; let prev = null;
+  const scr = (w) => { const p = w.clone().project(V.camera), r = el.getBoundingClientRect(); return [r.left + (p.x + 1) / 2 * r.width, r.top + (1 - p.y) / 2 * r.height]; };
+  const ang = e => { const [cx, cy] = scr(centreW()); return Math.atan2(e.clientY - cy, e.clientX - cx); };
+  const onPart = e => {
+    const r = el.getBoundingClientRect(); ray.setFromCamera({ x: (e.clientX - r.left) / r.width * 2 - 1, y: -(e.clientY - r.top) / r.height * 2 + 1 }, V.camera);
+    if (ray.intersectObject(hit, false).length) return true;
+    const [hx, hy] = scr(hit.getWorldPosition(new THREE.Vector3())); return Math.hypot(e.clientX - hx, e.clientY - hy) < 70;
+  };
+  const down = e => { unlockAudio(); if (!onPart(e)) { onMiss && onMiss(e); return; } e.stopImmediatePropagation(); prev = ang(e); el.setPointerCapture(e.pointerId); el.style.cursor = 'grabbing'; };
+  const move = e => { if (prev == null) return; e.stopImmediatePropagation(); const a = ang(e); let d = a - prev; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; prev = a; onTurn(d); };
+  const up = () => { prev = null; el.style.cursor = ''; };
+  el.addEventListener('pointerdown', down, true); el.addEventListener('pointermove', move, true); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  return { active: () => prev != null, off() { el.removeEventListener('pointerdown', down, true); el.removeEventListener('pointermove', move, true); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); } };
+}
+const glow = (mat, on) => { gsap.killTweensOf(mat); if (on) gsap.fromTo(mat, { emissiveIntensity: 0 }, { emissiveIntensity: 1.4, duration: .7, repeat: -1, yoyo: true }); else mat.emissiveIntensity = 0; };
+const hint = t => { const h = $('#wkView .wk__hint'); if (h) h.textContent = t; };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 async function ask(q, opts, cat, pts = 4) {
   let first = true;
@@ -127,84 +159,118 @@ async function ask(q, opts, cat, pts = 4) {
 // ---------------- tasks ----------------
 async function taskPPE() {
   workSteps(STEPS, 0); wsay('cut_ppe');
-  const items = [['goggles', 'نظارة واقية', 1], ['gloves', 'قفاز عمل', 1], ['shield', 'واقي وجه', 1], ['ear', 'سدادات أذن', 1], ['watch', 'ساعة وخاتم', 0], ['scarf', 'كوفية طويلة', 0]];
+  const items = [['goggles', 'نظارة واقية', 1], ['gloves', 'قفاز عمل', 1], ['shield', 'واقي وجه', 1], ['ear', 'واقي أذن', 1], ['watch', 'ساعة وخاتم', 0], ['scarf', 'كوفية طويلة', 0]];
+  const OK = items.filter(i => i[2]);
   await new Promise(res => {
-    body(`<p class="wk__q">الشغل فيه قطع وتجليخ بالصاروخ. اختار مهمات الوقاية المناسبة (4 حاجات).</p><div class="dock__row">${shuffle(items).map(([k, t]) => `<button class="tile" data-k="${k}">${ICON[k]}<span>${t}</span></button>`).join('')}</div>`);
+    body(`<div class="worker"><b class="worker__title">المتدرب · شوف كل حاجة بيلبسها</b><div class="worker__stage" id="cutWorker"></div>
+      <ul class="worker__list">${OK.map(([k, t]) => `<li data-slot="${k}">${ICON[k]}<span>${t}</span></li>`).join('')}</ul></div>
+      <p class="wk__q">الشغل فيه قطع وتجليخ بالصاروخ. اختار مهمات الوقاية المناسبة (4 حاجات).</p><div class="dock__row">${shuffle(items).map(([k, t]) => `<button class="tile" data-k="${k}">${ICON[k]}<span>${t}</span></button>`).join('')}</div>`);
+    if (WK) WK.stop();
+    WK = createWorker($('#cutWorker'), null); WK.start();
     let n = 0;
     $$('#wkBody [data-k]').forEach(b => b.addEventListener('click', () => {
       if (b.classList.contains('is-picked') || b.classList.contains('is-used')) return;
       const it = items.find(i => i[0] === b.dataset.k);
-      if (it[2]) { b.classList.add('is-picked'); sfx.wear(); if (++n === 4) { wmsg('تمام. الصاروخ بيطلّع شرر ورايش، وصوته عالي: الوجه والعين والودن لازم يكونوا محميين.', 'ok', 3500); setTimeout(res, 1200); } }
-      else { b.classList.add('is-wrong', 'is-used'); sfx.error(); wpenalize('safety', 5, 'اختيار غير آمن: ' + it[1]); wmsg(it[0] === 'watch' ? 'الساعة والخاتم ممكن يتشبكوا في العدة الدوّارة.' : 'اللبس الواسع ممكن يتلف في الصاروخ.', 'err'); }
+      if (it[2]) {
+        b.classList.add('is-picked'); sfx.wear(); WK.equip(it[0]);
+        const li = $(`#wkBody [data-slot="${it[0]}"]`); li.classList.add('is-on'); gsap.fromTo(li, { scale: .8 }, { scale: 1, duration: .4, ease: 'back.out(3)' });
+        if (++n === 4) { wmsg('تمام. الصاروخ بيطلّع شرر ورايش، وصوته عالي: الوجه والعين والودن لازم يكونوا محميين.', 'ok', 3500); setTimeout(() => { if (WK) { WK.stop(); WK = null; } res(); }, 2600); }
+      } else { b.classList.add('is-wrong', 'is-used'); sfx.error(); WK.wrong(it[0]); wpenalize('safety', 5, 'اختيار غير آمن: ' + it[1]); wmsg(it[0] === 'watch' ? 'الساعة والخاتم ممكن يتشبكوا في العدة الدوّارة.' : 'اللبس الواسع ممكن يتلف في الصاروخ.', 'err'); }
     }));
   });
 }
 async function taskClamp() {
   workSteps(STEPS, 1); wsay('cut_clamp');
-  V.setCam([0.32, 0.3, 0.42], [-0.08, 0, 0]);
-  let t = 0;
+  V.setCam([0.3, 0.34, 0.36], [-0.11, 0.06, 0]);
+  hint('امسك يد المنجلة الصفرا ولفّها في اتجاه عقارب الساعة');
+  glow(V.grip, true);
+  let t = 0, lastQ = 0;              // t = turns of the handle; jaw meets the pipe at CONTACT
+  const CONTACT = 3, GOOD = [3.6, 4.6], MAXT = 6;
   await new Promise(res => {
-    body(`<p class="wk__q">ثبّت الماسورة في منجلة المواسير: لف عمود الربط لحد ما الماسورة تتمسك كويس من غير ما تتفلطح.</p>
-      <div class="progress"><span class="mono" id="clT">0</span><div class="meter meter--zone"><i id="clBar" style="width:0%"></i></div></div><p class="muted" id="clState">الماسورة سايبة</p>
-      <div class="actions"><button class="btn btn--amber" id="clUp">${I.roll}لف عمود الربط</button><button class="btn" id="clDown">فك لفة</button><button class="btn btn--primary" id="clGo">كفاية — ابدأ القطع</button></div>`);
+    body(`<p class="wk__q">ثبّت الماسورة في منجلة المواسير <b>بإيدك</b>: امسك يد المنجلة في المجسم ولفّها مع عقارب الساعة لحد ما الماسورة تتمسك كويس من غير ما تتفلطح. عكس عقارب الساعة بيفك.</p>
+      <div class="progress"><span class="mono" id="clT" dir="ltr">0.0</span><div class="meter meter--zone"><i id="clBar" style="width:0%"></i></div></div><p class="muted" id="clState">الفك العلوي لسه بعيد عن الماسورة</p>
+      <div class="actions"><button class="btn btn--primary" id="clGo">كفاية — ابدأ القطع</button></div>`);
     const upd = () => {
-      $('#clT').textContent = t; $('#clBar').style.width = Math.min(100, t / 8 * 100) + '%';
-      $('#clState').textContent = t < 4 ? 'الماسورة لسه بتلف في الفكوك' : t <= 5 ? 'مربوطة كويس ✓' : 'زيادة! الفكوك بتعلّم وتفلطح الماسورة';
-      gsap.to(V.jaw.position, { y: OD / 2 + 0.008 + 0.02 - Math.min(t, 6) / 6 * 0.02, duration: .25 }); gsap.to(V.screw.rotation, { y: t * 1.2, duration: .25 });
+      $('#clT').textContent = t.toFixed(1) + (S.mode === 'learn' ? ' لفة' : ''); $('#clBar').style.width = Math.min(100, t / MAXT * 100) + '%';
+      $('#clState').textContent = t < CONTACT ? 'الفك العلوي نازل… لسه مالمسش الماسورة' : t < GOOD[0] ? 'الفك لمس الماسورة — لسه بتلف في الفكوك' : t <= GOOD[1] ? 'مربوطة كويس ✓' : 'زيادة! الفكوك بتعلّم وتفلطح الماسورة';
+      V.screwG.position.y = -Math.min(t, CONTACT) / CONTACT * 0.02 - Math.max(0, t - CONTACT) * 0.0006;
+      V.handle.rotation.y = -t * Math.PI * 2;
     };
-    $('#clUp').addEventListener('click', () => { t = Math.min(8, t + 1); sfx.ratchet(3); upd(); });
-    $('#clDown').addEventListener('click', () => { t = Math.max(0, t - 1); sfx.tap(); upd(); });
+    const g = grabTurn(V.handleHit, () => V.handle.getWorldPosition(new THREE.Vector3()), d => {
+      // after contact the screw gets stiff: same hand motion turns it less
+      const k = t >= CONTACT ? 0.45 : 1;
+      t = Math.max(0, Math.min(MAXT, t + d / (Math.PI * 2) * k));
+      const q = Math.floor(t * 4); if (q !== lastQ) { lastQ = q; t >= CONTACT ? sfx.ratchet(1) : sfx.tap(); if (Math.abs(t - CONTACT) < 0.15) sfx.clank(); }
+      upd();
+    }, () => wmsg('امسك يد المنجلة نفسها (الجزء الأصفر فوق) ولفّ.', 'info', 2500));
     $('#clGo').addEventListener('click', () => {
-      if (t < 4) { sfx.error(); wpenalize('cutting', 5, 'بدء القطع والماسورة غير مثبتة'); wmsg('الماسورة لفّت مع القطاعة! لازم تتربط كويس قبل القطع.', 'err'); return; }
-      if (t > 5) { wpenalize('cutting', 4, 'ربط المنجلة زيادة وتعليم الماسورة'); wmsg('الماسورة اتعلّمت من الفكوك. اربط لحد ما تتمسك بس.', 'info'); }
+      if (t < GOOD[0]) { sfx.error(); wpenalize('cutting', 5, 'بدء القطع والماسورة غير مثبتة'); wmsg(t < CONTACT ? 'الفك لسه مالمسش الماسورة! كمّل لف اليد.' : 'الماسورة لسه بتلف مع القطاعة! اربط أكتر شوية.', 'err'); gsap.fromTo(V.keep.rotation, { x: 0 }, { x: 0.25, duration: .15, yoyo: true, repeat: 3 }); return; }
+      if (t > GOOD[1]) { wpenalize('cutting', 4, 'ربط المنجلة زيادة وتعليم الماسورة'); wmsg('الماسورة اتعلّمت من الفكوك. اربط لحد ما تتمسك بس.', 'info'); }
       else wmsg('تثبيت مظبوط.', 'ok', 2000);
-      sfx.clank(); res();
+      g.off(); glow(V.grip, false); sfx.clank(); res();
     });
     upd();
   });
 }
 async function taskCut() {
   workSteps(STEPS, 2); wsay(S.mode === 'learn' ? 'cut_learn' : 'cut_test');
-  V.setCam([0.62, 0.12, 0.08], [CUT_X, 0, 0]);
-  let depth = 0, pending = 0, turn = 0, jam = false, overFeeds = 0, idle = 0;
+  V.setCam([0.6, 0.32, 0.42], [CUT_X - 0.02, 0.07, 0]);
+  hint('لف المقبض الأحمر فوق القطاعة ربع لفة · واسحب في دايرة حوالين الماسورة علشان تلف القطاعة');
+  glow(V.knobMat, true);
+  let depth = 0, pending = 0, turn = 0, jam = false, overFeeds = 0, idle = 0, knobQ = 0, contact = false;
   await new Promise(res => {
-    body(`<p class="wk__q">لف القطاعة حوالين الماسورة بالسحب في دايرة على الشاشة. بعد كل لفة كاملة زوّد التغذية ربع لفة.</p>
+    body(`<p class="wk__q">1) لف <b>مفتاح التغذية</b> (المقبض الأحمر فوق القطاعة في المجسم) ربع لفة مع عقارب الساعة.<br>2) اسحب في دايرة حوالين الماسورة علشان تلف القطاعة لفة كاملة.<br>كرّر لحد ما الماسورة تتقطع. عكس عقارب الساعة على المفتاح بيفك التغذية.</p>
       <div class="progress"><span>${I.wrench}</span><div class="meter"><i id="ctBar" style="width:0%"></i></div><b class="mono" id="ctD" dir="ltr">0.0 / ${WALL} mm</b></div>
-      <div class="actions"><button class="btn btn--amber" id="ctFeed">${I.roll}زوّد التغذية ¼ لفة</button><button class="btn" id="ctBack">فك التغذية</button><span class="pill mono" id="ctRev">0 لفة</span></div>
-      <p class="muted" id="ctState">ركّب القطاعة على العلامة الحمرا وزوّد التغذية علشان العجلة تلمس الماسورة.</p>`);
+      <div class="actions"><span class="pill mono" id="ctFeedP">تغذية: 0</span><span class="pill mono" id="ctRev">0 لفة</span></div>
+      <p class="muted" id="ctState">ركّب القطاعة على العلامة الحمرا ولف مفتاح التغذية لحد ما العجلة تلمس الماسورة.</p>`);
     const st = $('#ctState');
-    const upd = () => { $('#ctBar').style.width = Math.min(100, depth / WALL * 100) + '%'; $('#ctD').textContent = `${depth.toFixed(1)} / ${WALL} mm`; $('#ctRev').textContent = `${Math.floor(Math.abs(turn) / (Math.PI * 2))} لفة`; V.groove.geometry.dispose(); V.groove.geometry = new THREE.TorusGeometry(OD / 2 - depth / 2000, 0.0004 + depth / 2000, 8, 64); };
-    $('#ctFeed').addEventListener('click', () => {
-      if (jam) return;
-      pending++; sfx.ratchet(2); gsap.to(V.knob.rotation, { y: `+=${Math.PI / 2}`, duration: .25 });
-      if (pending >= 2) { overFeeds++; sfx.error(); st.textContent = 'تغذية زيادة قبل ما تكمل اللفة!'; if (pending >= 3) { jam = true; wpenalize('cutting', 6, 'تغذية زيادة: عجلة القطع اتزنقت'); wmsg('العجلة اتزنقت! التغذية الزيادة بتكسر العجلة وتعمل حرف ملفوف (Burr) كبير. فك التغذية شوية.', 'err', 6000); } else wmsg('ربع لفة تغذية بس لكل لفة كاملة. التغذية الكبيرة بتشوّه طرف الماسورة.', 'info'); }
-      else st.textContent = 'العجلة ضاغطة على الماسورة. لف لفة كاملة.';
-    });
-    $('#ctBack').addEventListener('click', () => { if (pending > 0) pending--; jam = pending >= 3; sfx.tap(); st.textContent = jam ? 'لسه متزنقة' : 'التغذية اتظبطت. كمّل لف.'; });
+    const upd = () => { $('#ctBar').style.width = Math.min(100, depth / WALL * 100) + '%'; $('#ctD').textContent = `${depth.toFixed(1)} / ${WALL} mm`; $('#ctRev').textContent = `${Math.floor(Math.abs(turn) / (Math.PI * 2))} لفة`; $('#ctFeedP').textContent = `تغذية: ${pending.toFixed(1)} × ¼`; V.groove.geometry.dispose(); V.groove.geometry = new THREE.TorusGeometry(OD / 2 - depth / 2000, 0.0004 + depth / 2000, 8, 64); };
+    // knob: a clockwise quarter turn adds one feed step; counter-clockwise backs it off
+    const g = grabTurn(V.knobHit, () => V.knob.getWorldPosition(new THREE.Vector3()), d => {
+      if (!S) return;
+      const dq = d / (Math.PI / 2);
+      if (!contact) { // the first turns only bring the wheel down onto the pipe
+        knobQ += Math.max(0, dq); V.knob.rotation.y -= Math.max(0, d); $('#ctFeedP').textContent = `اقتراب العجلة: ${Math.min(100, Math.round(knobQ / 4 * 100))}%`; if (Math.random() < .2) sfx.tap();
+        if (knobQ >= 4) { contact = true; knobQ = 0; sfx.clank(); st.textContent = 'العجلة لمست الماسورة. لف القطاعة لفة كاملة الأول، وبعدين ربع لفة تغذية.'; wmsg('لمست. من هنا: ربع لفة تغذية بس لكل لفة قطاعة.', 'ok', 3000); }
+        return;
+      }
+      const before = pending; pending = Math.max(0, pending + dq); V.knob.rotation.y -= d;
+      if (Math.floor(pending * 4) !== Math.floor(before * 4)) sfx.ratchet(1);
+      if (dq < 0 && jam && pending < 2.5) { jam = false; st.textContent = 'العجلة اتحررت. كمّل لف بتغذية خفيفة.'; }
+      if (Math.floor(pending) > Math.floor(before) && dq > 0) {
+        if (pending >= 3 && !jam) { jam = true; overFeeds++; sfx.error(); wpenalize('cutting', 6, 'تغذية زيادة: عجلة القطع اتزنقت'); wmsg('العجلة اتزنقت! التغذية الزيادة بتكسر العجلة وتعمل حرف ملفوف (Burr) كبير. لف المفتاح عكس عقارب الساعة شوية.', 'err', 6000); }
+        else if (pending >= 2) { overFeeds++; sfx.error(); st.textContent = 'تغذية زيادة قبل ما تكمل اللفة!'; wmsg('ربع لفة تغذية بس لكل لفة كاملة. التغذية الكبيرة بتشوّه طرف الماسورة.', 'info'); }
+        else st.textContent = 'ربع لفة ✓ — العجلة ضاغطة. لف القطاعة لفة كاملة.';
+      }
+      upd();
+    }, null);
     let acc = 0;
     const unbind = circleDrag(d => {
-      if (!S) return;
-      if (jam) { st.textContent = 'العجلة متزنقة — فك التغذية الأول'; return; }
+      if (!S || g.active()) return;
+      if (!contact) { st.textContent = 'العجلة لسه مش لامسة — لف مفتاح التغذية الأول'; return; }
+      if (jam) { st.textContent = 'العجلة متزنقة — فك مفتاح التغذية شوية (عكس عقارب الساعة)'; return; }
       V.cutter.rotation.x += d; turn += d; acc += Math.abs(d);
-      if (pending === 0) { idle += Math.abs(d); if (idle > Math.PI * 2.5) { st.textContent = 'العجلة بتلف على الفاضي — زوّد التغذية'; } return; }
+      if (pending < 0.05) { idle += Math.abs(d); if (idle > Math.PI * 2.5) { st.textContent = 'العجلة بتلف على الفاضي — زوّد التغذية ربع لفة'; } return; }
       idle = 0; V.setSpark(1);
       if (acc > 0.5) { acc = 0; sfx.brush(); }
       // one quarter-turn of feed is consumed over one full revolution
       const use = Math.min(pending, Math.abs(d) / (Math.PI * 2));
       depth = Math.min(WALL, depth + use * FEED * (pending >= 2 ? 1.6 : 1)); pending = Math.max(0, pending - use);
-      if (pending < 0.05) { pending = 0; st.textContent = 'لفة كاملة ✓ — زوّد التغذية ربع لفة'; }
+      if (pending < 0.05) { pending = 0; st.textContent = 'لفة كاملة ✓ — لف مفتاح التغذية ربع لفة'; }
       upd();
       if (depth >= WALL - 1e-6) {
-        unbind(); V.setSpark(0); sfx.clank();
+        unbind(); g.off(); glow(V.knobMat, false); V.setSpark(0); sfx.clank();
         gsap.to(V.cutter.position, { y: 0.3, x: CUT_X + 0.2, duration: .8, ease: 'power2.in', onComplete: () => (V.cutter.visible = false) });
         gsap.to(V.off.position, { y: -0.4, duration: .9, delay: .3, ease: 'power2.in' }); gsap.to(V.off.rotation, { x: 0.8, duration: .9, delay: .3 });
         V.mark.visible = false; V.groove.visible = false; V.burr.visible = true;
         S.overFeeds = overFeeds; S.burrBig = overFeeds > 1;
         if (S.burrBig) V.burr.scale.setScalar(1.6);
+        hint('اسحب في دايرة علشان تلف العدة');
         wmsg('الماسورة اتقطعت. بص على الطرف من جوه: فيه رايش (Burr) لازم يتشال.', 'ok', 4000);
         setTimeout(res, 1600);
       }
     });
+    upd();
   });
 }
 async function taskDeburr() {
@@ -284,8 +350,9 @@ export const cutStation = {
     S = { mode, level };
     openWork({ id: 'cut', title: 'قطع وشطف المواسير', sub: 'ماسورة DN50 · Sch40 · تجهيز للحام تناكبي', mode, level, steps: STEPS,
       cats: { safety: ['السلامة', 15], cutting: ['التثبيت والقطع', 35], deburr: ['إزالة الرايش', 15], bevel: ['الشطف', 20], inspect: ['الفحص', 15] } });
-    $('#wkView').innerHTML = '<div class="wk__3d" id="cut3d"></div><p class="wk__hint">اسحب في دايرة حوالين الماسورة علشان تلف العدة</p>';
+    $('#wkView').innerHTML = '<div class="wk__3d" id="cut3d"></div><p class="wk__hint">جهّز نفسك الأول: البس مهمات الوقاية</p>';
     buildScene($('#cut3d'));
+    if (location.search.includes('debug')) window.__cut = { V: () => V, scr: o => { const p = o.getWorldPosition(new THREE.Vector3()).project(V.camera), r = V.dom.getBoundingClientRect(); return [r.left + (p.x + 1) / 2 * r.width, r.top + (1 - p.y) / 2 * r.height]; } };
     const run = S;
     for (const t of [taskPPE, taskClamp, taskCut, taskDeburr, taskBevel, taskInspect]) { await t(); if (S !== run) return; }
     workSteps(STEPS, 6); closeWork();
@@ -298,5 +365,5 @@ export const cutStation = {
   },
   again() { return this.start(this.last); },
   replay: wreplay,
-  stop() { S = null; closeWork(); if (V) { V.stop(); V = null; } },
+  stop() { S = null; closeWork(); if (WK) { WK.stop(); WK = null; } if (V) { V.stop(); V = null; } },
 };

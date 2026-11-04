@@ -5,20 +5,21 @@ import { VOICE } from './voice-lines.js';
 import { $, $$, gsap, I, show, profile, saveProfile, level, playLine, stopVoice, replay, BADGES, LEVELS } from './ui.js';
 import { flangeStation, __dbg as flangeDbg } from './stations/flange.js';
 import { libraryStation } from './stations/library.js';
-import { drawingStation } from './stations/drawing.js';
+import { drawingStation, DRAW_SCEN } from './stations/drawing.js';
 import { measureStation } from './stations/measure.js';
 import { cutStation } from './stations/cut.js';
+import { threadStation } from './stations/thread.js';
 import { ITEMS } from './tools3d.js';
 
 // ---------------- station catalogue ----------------
 const STATIONS = [
   { id: 'library', cat: 'basics', icon: 'library', accent: 'cyan', t: 'مكتبة العِدد والمعدات', d: 'لِف كل عدة بإيدك، واعرف أجزاءها واستخدامها وتعليمات السلامة.', skills: ['القياس', 'العِدد اليدوية', 'مكونات المواسير'], live: true, kind: 'library' },
-  { id: 'drawing', cat: 'drawing', icon: 'drawing', accent: 'amber', t: 'قراءة الرسومات الهندسية', d: 'رسومات أيزومترية لخطوط السفن والبترول: الرموز، الكميات، وأطوال القطع.', skills: ['الرموز', 'قائمة المواد', 'حساب الأطوال'], live: true, kind: 'sheet', station: drawingStation, scenarios: ['ship', 'oil'] },
+  { id: 'drawing', cat: 'drawing', icon: 'drawing', accent: 'amber', t: 'قراءة الرسومات الهندسية', d: 'خمس رسومات أيزومترية لخطوط السفن والبترول (مياه البحر، الحريق، الوقود، السينتينة، زيت خام) ومكتبة لكل رموز التركيبات.', skills: ['الرموز', 'قائمة المواد', 'حساب الأطوال'], live: true, kind: 'sheet', station: drawingStation, scenarios: ['sw', 'fire', 'fuel', 'bilge', 'oil', 'symbols'], scenarioDefs: DRAW_SCEN },
   { id: 'flange', cat: 'ship', icon: 'twrench', accent: 'blue', t: 'تجميع واختبار وصلة فلانشة', d: 'تنظيف وفحص، حشية، كوع، ربط بالعزم بالتتابع النجمي، واختبار ضغط مع عيوب حقيقية لازم تشخّصها.', skills: ['الفحص', 'التجميع', 'العزم', 'الاختبار'], live: true, kind: 'sheet', station: flangeStation, scenarios: ['ship', 'oil'] },
   { id: 'measure', cat: 'basics', icon: 'caliper', accent: 'cyan', t: 'القياس والشنكرة', d: 'قراءة الورنية بدقة 0.1 و0.05 و0.02 مم، قياس قطر الماسورة وتحديد مقاسها، وشنكرة طول القطع بالمتر.', skills: ['الورنية', 'مقاسات المواسير', 'الشنكرة'], live: true, kind: 'sheet', screen: 'work', station: measureStation },
   { id: 'bench', cat: 'basics', icon: 'file', accent: 'cyan', t: 'أعمال البرادة على المنجلة', d: 'القطع بالمنشار، البرد، التخريم، والقلوظة اليدوية.', skills: ['المنشار', 'المبرد', 'التخريم'], live: false },
   { id: 'cut', cat: 'basics', icon: 'cutter', accent: 'blue', t: 'قطع وشطف المواسير', d: 'تثبيت في المنجلة، قطع بالقطاعة مع التحكم في التغذية، إزالة الرايش، وشطفة 37.5° للحام.', skills: ['المنجلة', 'القطاعة', 'الشطف', 'الفحص'], live: true, kind: 'sheet', screen: 'work', station: cutStation },
-  { id: 'thread', cat: 'ship', icon: 'thread', accent: 'blue', t: 'قلوظة ووصلات المواسير', d: 'عمل سن القلاووظ، الشريط، والربط بمفتاح المواسير.', skills: ['اللقمة', 'التسريب'], live: false },
+  { id: 'thread', cat: 'ship', icon: 'thread', accent: 'blue', t: 'قلوظة ووصلات المواسير', d: 'قلوظة ماسورة 1" باللقمة والزيت، لف شريط التفلون في الاتجاه الصح، ربط الجلبة بمفتاح المواسير، واختبار تسريب مع تشخيص العيوب.', skills: ['اللقمة', 'التفلون', 'مفتاح المواسير', 'التسريب'], live: true, kind: 'sheet', screen: 'work', station: threadStation },
   { id: 'seawater', cat: 'ship', icon: 'ship', accent: 'blue', t: 'خطوط السفن: مياه البحر والحريق', d: 'مشروع تركيب خط من الرسم داخل غرفة الماكينات، بالحوامل والصمامات.', skills: ['مشروع', 'الحوامل'], live: false },
   { id: 'oilgas', cat: 'oil', icon: 'oil', accent: 'red', t: 'خطوط البترول والغاز', d: 'فلانشات Class 300، حشيات حلزونية، وإجراءات العزل والأمان.', skills: ['التصنيفات', 'العزل'], live: false },
   { id: 'hydro', cat: 'oil', icon: 'shield', accent: 'red', t: 'الاختبار الهيدروليكي للخطوط', d: 'تجهيز الاختبار، رفع الضغط على مراحل، وتسجيل النتائج.', skills: ['الاختبار', 'التقرير'], live: false },
@@ -118,7 +119,12 @@ function openStation(id) {
   $('#launchKicker').textContent = 'إعداد التدريب';
   $('#launchTitle').textContent = s.t; $('#launchDesc').textContent = s.d;
   $('#scenarioGroup').hidden = !s.scenarios;
-  if (s.scenarios) $('#scenarioSeg').innerHTML = s.scenarios.map(k => `<button class="seg__b ${launch.scenario === k ? 'is-on' : ''}" data-scen="${k}"><b>${SCEN[k].t}</b><small>${SCEN[k].d}</small></button>`).join('');
+  if (s.scenarios) {
+    const defs = s.scenarioDefs || SCEN;
+    if (!s.scenarios.includes(launch.scenario)) launch.scenario = s.scenarios[0];
+    $('#scenarioSeg').innerHTML = s.scenarios.map(k => `<button class="seg__b ${launch.scenario === k ? 'is-on' : ''}" data-scen="${k}"><b>${defs[k].t}</b><small>${defs[k].d}</small></button>`).join('');
+    $('#scenarioSeg').classList.toggle('seg--wrap', s.scenarios.length > 3);
+  }
   $('#modeSeg').innerHTML = [['learn', 'تعلّم', 'شرح صوتي وإرشاد'], ['test', 'اختبار', 'من غير مساعدة · بدرجة']].map(([k, t, d]) => `<button class="seg__b ${launch.mode === k ? 'is-on' : ''}" data-mode="${k}"><b>${t}</b><small>${d}</small></button>`).join('');
   $('#levelSeg').innerHTML = Object.entries(LEVELS).map(([k, v]) => `<button class="seg__b ${launch.level === k ? 'is-on' : ''}" data-level="${k}"><b>${v.t}</b><small>${v.d}</small></button>`).join('');
   const sh = $('#launchSheet'); sh.hidden = false;

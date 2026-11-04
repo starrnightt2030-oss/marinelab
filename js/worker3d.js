@@ -89,6 +89,17 @@ export function createWorker(container, logoImg) {
       part(new THREE.BoxGeometry(0.29, 0.05, 0.43), C.yellow, [s * 0.2, 0.27, 0.06], { parent: g, outline: false });
     });
   });
+  mk('shield', g => {
+    part(new THREE.TorusGeometry(0.455, 0.035, 8, 48), C.black, [0, 2.3, 0], { parent: g, rot: [Math.PI / 2, 0, 0], outline: false });
+    part(new THREE.BoxGeometry(0.5, 0.1, 0.12), C.black, [0, 2.38, 0.5], { parent: g, rot: [0.3, 0, 0], ol: 0.05 });
+    const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.56, 0.6, 0.66, 40, 1, true, -Math.PI * 0.42, Math.PI * 0.84), new THREE.MeshPhongMaterial({ color: 0xbfe9ff, transparent: true, opacity: 0.32, shininess: 120, side: THREE.DoubleSide, depthWrite: false }));
+    visor.position.set(0, 2.02, 0.02); g.add(visor);
+    part(new THREE.TorusGeometry(0.6, 0.014, 6, 40, Math.PI * 0.84), C.steel, [0, 1.69, 0.02], { parent: g, rot: [Math.PI / 2, 0, Math.PI * 0.08], outline: false });
+  });
+  mk('ear', g => {
+    part(new THREE.TorusGeometry(0.56, 0.035, 8, 40, Math.PI), C.red, [0, 2.06, 0], { parent: g, outline: false });
+    [-1, 1].forEach(s => part(new THREE.CylinderGeometry(0.15, 0.15, 0.12, 24), C.red, [s * 0.55, 2.04, 0], { parent: g, rot: [0, 0, Math.PI / 2] }));
+  });
   mk('scarf', g => { part(new THREE.TorusGeometry(0.2, 0.08, 10, 30), C.red, [0, 1.66, 0], { parent: g, rot: [Math.PI / 2, 0, 0] }); part(new THREE.BoxGeometry(0.14, 0.6, 0.06), C.red, [0.12, 1.3, 0.3], { parent: g, rot: [0.1, 0, 0.25] }); });
   mk('watch', g => { part(new THREE.CylinderGeometry(0.14, 0.14, 0.07, 20), C.black, [-0.58, 1.0, 0.02], { parent: g, rot: [0, 0, -0.22] }); part(new THREE.CylinderGeometry(0.07, 0.07, 0.03, 20), C.steel, [-0.58, 1.0, 0.13], { parent: g, rot: [Math.PI / 2, 0, 0] }); });
   mk('sandal', g => { [-1, 1].forEach(s => { part(new THREE.BoxGeometry(0.26, 0.04, 0.44), C.blue, [s * 0.2, 0.02, 0.08], { parent: g }); part(sph(0.12), C.skin, [s * 0.2, 0.12, 0.1], { parent: g, scale: [1, 0.7, 1.4] }); }); });

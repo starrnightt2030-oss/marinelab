@@ -1,7 +1,9 @@
 // Offline cache: everything the app needs is precached on install.
-const CACHE = 'marinelab-v5';
+const CACHE = 'marinelab-v6';
 const FILES = [
   "./",
+  "./index.html",
+  "./manifest.webmanifest",
   "./assets/icon-192.png",
   "./assets/icon-512.png",
   "./assets/logo.png",
@@ -48,27 +50,30 @@ const FILES = [
   "./fonts/readex-pro-latin-500-normal.woff2",
   "./fonts/readex-pro-latin-600-normal.woff2",
   "./fonts/readex-pro-latin-700-normal.woff2",
-  "./index.html",
   "./js/ambient.js",
   "./js/audio.js",
+  "./js/grab3d.js",
+  "./js/library-data.js",
   "./js/main.js",
   "./js/scene.js",
-  "./js/stations/cut.js",
-  "./js/stations/drawing.js",
-  "./js/stations/flange.js",
-  "./js/stations/library.js",
-  "./js/stations/measure.js",
+  "./js/symbols.js",
   "./js/tools3d.js",
   "./js/ui.js",
   "./js/voice-lines.js",
   "./js/work.js",
   "./js/worker3d.js",
-  "./manifest.webmanifest",
-  "./vendor/addons/OrbitControls.js",
-  "./vendor/addons/RoomEnvironment.js",
+  "./js/stations/cut.js",
+  "./js/stations/drawing.js",
+  "./js/stations/flange.js",
+  "./js/stations/library.js",
+  "./js/stations/measure.js",
+  "./js/stations/thread.js",
   "./vendor/confetti.browser.js",
   "./vendor/gsap.min.js",
-  "./vendor/three.module.min.js"
+  "./vendor/three.module.min.js",
+  "./vendor/addons/OrbitControls.js",
+  "./vendor/addons/RoomEnvironment.js",
+  "./vendor/addons/RoundedBoxGeometry.js"
 ];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
