@@ -6,7 +6,7 @@ import { sfx, leakSound } from '../audio.js';
 import { $, $$, gsap, I, renderResult, shuffle, SES } from '../ui.js';
 import { openWork, closeWork, workSteps, wsay, wreplay, wmsg, wpenalize, body, choose } from '../work.js';
 import { createWorker } from '../worker3d.js';
-import { twist, tap3d, glow } from '../grab3d.js';
+import { twist, tap3d, glow, floatControls } from '../grab3d.js';
 import { ITEMS } from '../tools3d.js';
 
 // DN25 (1") Sch40; 11.5 threads per inch (NPT/BSPT 1"). Training values: about 10 full threads for a 1" pipe.
@@ -221,7 +221,7 @@ async function taskThread() {
       if (dry) { dry = false; V.smoke(0); }
       st.textContent = started ? 'اتزيّتت. كمّل.' : 'اللقمة متزيّتة. امسك الذراع ولف.'; upd();
     });
-    const tw = twist(V, () => V.head.getWorldPosition(W()), d => {
+    const turnDie = d => {
       if (!S) return;
       // viewed from the pipe end (camera on +X) a clockwise screen twist = rotating the die clockwise = cutting
       if (d > 0) {
@@ -239,14 +239,19 @@ async function taskThread() {
       } else {
         const back = -d / (Math.PI * 2);
         pos = Math.max(0, pos - back); V.head.rotation.x -= d;
-        if (chip > 0) { chip = Math.max(0, chip - back * 5); if (chip === 0 && started) { backs++; sfx.brush(); } }
-        if (jam && chip < 0.5) { jam = false; st.textContent = 'الرايش اتكسر. كمّل لف لقدّام.'; }
+        if (chip > 0) { chip = Math.max(0, chip - back * 9); if (chip === 0 && started) { backs++; sfx.brush(); } }
+        if (jam && chip < 1) { jam = false; st.textContent = 'الرايش اتكسر. كمّل لف لقدّام.'; }
       }
       upd();
-    }, { hit: V.leverHit, px: 90, miss: () => wmsg('امسك ذراع اللقمة (الأحمر) ولف بيه حوالين الماسورة.', 'info', 2500) });
+    };
+    const tw = twist(V, () => V.head.getWorldPosition(W()), turnDie, { hit: V.leverHit, px: 90, miss: () => wmsg('امسك ذراع اللقمة (الأحمر) ولف بيه حوالين الماسورة.', 'info', 2500) });
+    const offF = floatControls($('#wkView'), [
+      { label: 'اضغط مع الاستمرار: لف اللقمة', icon: I.roll, hold: turnDie },
+      { label: 'رجّع ربع لفة', alt: true, tap: () => { for (let k = 1; k <= 8; k++) setTimeout(() => S && turnDie(-Math.PI / 16), k * 30); } },
+    ]);
     $('#thDone').addEventListener('click', () => {
       if (cut < 2) { wmsg('لسه ماعملتش سن تقريبًا!', 'err', 2500); sfx.error(); return; }
-      tw.off(); untap(); glow(gsap, V.M.red, false); glow(gsap, V.M.brass, false); V.smoke(0);
+      tw.off(); offF(); untap(); glow(gsap, V.M.red, false); glow(gsap, V.M.brass, false); V.smoke(0);
       S.threads = cut;
       if (cut < GOOD[0]) { S.short = true; wpenalize('threading', 6, `سن قصير (${cut.toFixed(1)} سنة)`); }
       else if (cut > GOOD[1] + 1) { S.long = true; wpenalize('threading', 3, `سن أطول من المطلوب (${cut.toFixed(1)} سنة)`); }
@@ -310,7 +315,7 @@ async function taskMakeup() {
   workSteps(STEPS, 5); wsay('thr_makeup');
   V.fit.visible = true; V.setCam([0.34, 0.2, 0.42], [0.02, 0, 0]);
   gsap.fromTo(V.fit.position, { x: 0.2 }, { x: 0, duration: .7, ease: 'power2.out' });
-  const handTight = Math.min(S.threads, 10) * 0.45;   // turns by hand before the taper locks
+  const handTight = Math.min(S.threads, 10) * 0.35;   // turns by hand before the taper locks
   let turns = 0;
   const place = () => { V.fit.position.x = -turns * PITCH; V.fit.rotation.x = -turns * Math.PI * 2; };
   // 1) hand tight
@@ -318,11 +323,14 @@ async function taskMakeup() {
   glow(gsap, V.M.galv, true);
   await new Promise(res => {
     body(`<p class="wk__q">ركّب الجلبة (Coupling) على السن، ولفّها <b>بإيدك</b> مع عقارب الساعة لحد ما تقف (ربط اليد).</p><p class="muted" id="mkState">ابدأ لف.</p>`);
-    const tw = twist(V, () => V.fit.getWorldPosition(W()), d => {
-      if (d < 0) return;
+    const turnHand = d => {
+      if (d < 0 || done) return;
       turns = Math.min(handTight, turns + d / (Math.PI * 2)); place(); if (Math.random() < .2) sfx.tap();
-      if (turns >= handTight) { tw.off(); glow(gsap, V.M.galv, false); sfx.thunk(); $('#mkState').textContent = 'وقفت: ده ربط اليد (Hand tight).'; setTimeout(res, 900); }
-    }, { hit: V.fitHit, px: 90 });
+      if (turns >= handTight) { done = true; tw.off(); offF(); glow(gsap, V.M.galv, false); sfx.thunk(); $('#mkState').textContent = 'وقفت: ده ربط اليد (Hand tight).'; setTimeout(res, 900); }
+    };
+    let done = false;
+    const tw = twist(V, () => V.fit.getWorldPosition(W()), turnHand, { hit: V.fitHit, px: 90 });
+    const offF = floatControls($('#wkView'), [{ label: 'اضغط مع الاستمرار: لف الجلبة بإيدك', icon: I.roll, hold: turnHand }], 1.2);
   });
   if (!S) return;
   await ask('علشان تكمّل الربط بعد ربط اليد، هتستخدم إيه؟', [
@@ -340,7 +348,7 @@ async function taskMakeup() {
     body(`<p class="wk__q">امسك <b>ذراع مفتاح المواسير</b> واربط. بعد ربط اليد المطلوب حوالي <b>1.5 – 3 لفات</b> بالمفتاح. الربط الزيادة بيشرخ الجلبة، والقليل بيسرّب.</p>
       <div class="progress"><span>${I.wrench}</span><div class="meter meter--zone"><i id="mkBar" style="width:0%"></i></div><b class="mono" id="mkN">${S.mode === 'learn' ? '0.0 لفة' : '—'}</b></div>
       <p class="muted" id="mkState">الفكوك ماسكة الجلبة.</p><div class="actions"><button class="btn btn--primary" id="mkDone">كفاية ربط</button></div>`);
-    const tw = twist(V, () => V.fit.getWorldPosition(W()), d => {
+    const turnWrench = d => {
       if (d <= 0) { V.wr.rotation.x = Math.min(0, V.wr.rotation.x - d); return; }   // swing back freely (re-grip)
       const k = 0.5 + 0.5 / (1 + extra);      // gets stiffer as the taper locks
       const t = d / (Math.PI * 2) * k; extra += t; turns += t; swing += d * k; place();
@@ -349,9 +357,11 @@ async function taskMakeup() {
       else if (Math.random() < .2) sfx.ratchet(1);
       if (S.mode === 'learn') { $('#mkN').textContent = `${extra.toFixed(1)} لفة`; $('#mkBar').style.width = Math.min(100, extra / 4 * 100) + '%'; }
       if (extra > 3.6 && !S.cracked) { S.cracked = true; sfx.boom(); wpenalize('makeup', 8, 'ربط زيادة: الجلبة اتشرخت'); wmsg('طقّة! الجلبة اتشرخت من الربط الزيادة.', 'err', 4500); }
-    }, { hit: V.wrHit, px: 120, miss: () => wmsg('امسك ذراع المفتاح الأحمر.', 'info', 2000) });
+    };
+    const tw = twist(V, () => V.fit.getWorldPosition(W()), turnWrench, { hit: V.wrHit, px: 120, miss: () => wmsg('امسك ذراع المفتاح الأحمر.', 'info', 2000) });
+    const offF = floatControls($('#wkView'), [{ label: 'اضغط مع الاستمرار: اربط بالمفتاح', icon: I.wrench, hold: turnWrench }], 3);
     $('#mkDone').addEventListener('click', () => {
-      tw.off(); S.extra = extra;
+      tw.off(); offF(); S.extra = extra;
       if (extra < 1.2) { S.under = true; wpenalize('makeup', 6, `ربط قليل (${extra.toFixed(1)} لفة بعد ربط اليد)`); }
       gsap.to(V.wr.position, { y: -0.3, duration: .6, onComplete: () => (V.wr.visible = false) }); hint(''); res();
     });

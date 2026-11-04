@@ -42,3 +42,23 @@ export function tap3d(V, obj, onTap, px = 60) {
 /** Pulse an emissive material to show "grab me". */
 export function glow(gsap, mat, on) { gsap.killTweensOf(mat); if (on) gsap.fromTo(mat, { emissiveIntensity: 0 }, { emissiveIntensity: 1.4, duration: .7, repeat: -1, yoyo: true }); else mat.emissiveIntensity = 0; }
 export { toScreen };
+
+/**
+ * Floating controls on the 3D view (always visible, big for touch). buttons: [{ label, icon, hold: fn(dt), tap: fn() }].
+ * A hold button calls hold(radians) every frame while pressed (one turn per `period` seconds). Returns an unbind function.
+ */
+export function floatControls(view, buttons, period = 1.6) {
+  const bar = document.createElement('div'); bar.className = 'floatbar';
+  const offs = buttons.map(b => {
+    const el = document.createElement('button'); el.className = 'holdbtn holdbtn--spin' + (b.alt ? ' holdbtn--alt' : '');
+    el.innerHTML = `<i></i><span>${b.icon || ''}${b.label}</span>`; bar.appendChild(el);
+    if (b.tap) { const f = e => { e.preventDefault(); unlockAudio(); b.tap(); }; el.addEventListener('click', f); return () => {}; }
+    let on = false, raf = 0, t0 = 0;
+    const spin = now => { if (!on) return; const dt = Math.min(0.25, (now - t0) / 1000); t0 = now; b.hold(dt * Math.PI * 2 / period); raf = requestAnimationFrame(spin); };
+    el.addEventListener('pointerdown', e => { e.preventDefault(); unlockAudio(); on = true; el.classList.add('is-on'); el.setPointerCapture?.(e.pointerId); t0 = performance.now(); raf = requestAnimationFrame(spin); });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, () => { on = false; el.classList.remove('is-on'); cancelAnimationFrame(raf); }));
+    return () => { on = false; cancelAnimationFrame(raf); };
+  });
+  view.appendChild(bar);
+  return () => { offs.forEach(f => f()); bar.remove(); };
+}

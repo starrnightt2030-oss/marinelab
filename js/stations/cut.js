@@ -7,7 +7,7 @@ import { createWorker } from '../worker3d.js';
 import { ITEMS } from '../tools3d.js';
 import { openWork, closeWork, workSteps, wsay, wreplay, wmsg, wpenalize, body, choose } from '../work.js';
 
-const OD = 0.0603, WALL = 3.91, ID = OD - 2 * WALL / 1000, CUT_X = 0.2, FEED = 0.36;   // DN50 Sch40 — mm for wall/feed
+const OD = 0.0603, WALL = 3.91, ID = OD - 2 * WALL / 1000, CUT_X = 0.2, FEED = 0.5;    // DN50 Sch40 — mm for wall/feed
 const STEPS = ['مهمات الوقاية', 'تثبيت الماسورة', 'القطع بالقطاعة', 'إزالة الرايش', 'تجهيز الشطفة', 'الفحص'];
 const ICON = {
   goggles: '<svg viewBox="0 0 48 48"><rect x="5" y="17" width="16" height="13" rx="5"/><rect x="27" y="17" width="16" height="13" rx="5"/><path d="M21 23h6"/></svg>',
@@ -117,15 +117,37 @@ function buildScene(host) {
 }
 
 /** Drag in a circle around the pipe's on-screen centre; calls onTurn(deltaRadians). Returns an unbind function. */
-function circleDrag(onTurn) {
-  const el = V.dom; let prev = null;
+function circleDrag(onTurn, label = 'اضغط مع الاستمرار: لف القطاعة') {
+  const el = V.dom; let prev = null, last = null;
   const centre = () => { const p = new THREE.Vector3(CUT_X, 0, 0).project(V.camera), r = el.getBoundingClientRect(); return [r.left + (p.x + 1) / 2 * r.width, r.top + (1 - p.y) / 2 * r.height]; };
   const ang = e => { const [cx, cy] = centre(); return Math.atan2(e.clientY - cy, e.clientX - cx); };
-  const down = e => { unlockAudio(); prev = ang(e); el.setPointerCapture(e.pointerId); };
-  const move = e => { if (prev == null) return; const a = ang(e); let d = a - prev; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; prev = a; onTurn(d); };
-  const up = () => { prev = null; };
+  const down = e => { unlockAudio(); prev = ang(e); last = [e.clientX, e.clientY]; el.setPointerCapture(e.pointerId); ring.classList.add('is-on'); };
+  const move = e => {
+    if (prev == null) return;
+    const [cx, cy] = centre(), r = Math.hypot(e.clientX - cx, e.clientY - cy), a = ang(e);
+    let d;
+    if (r < 45) d = (e.clientY - last[1]) / 70;          // too close to the axis for a clean angle: drag down = turn
+    else { d = a - prev; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; }
+    prev = a; last = [e.clientX, e.clientY]; if (d) onTurn(d);
+  };
+  const up = () => { prev = null; ring.classList.remove('is-on'); };
   el.addEventListener('pointerdown', down); el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-  return () => { el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+  // guide ring drawn around the pipe on screen
+  const ring = document.createElement('div'); ring.className = 'turnring';
+  ring.innerHTML = '<svg viewBox="-100 -100 200 200"><circle r="80"/><path d="M80 0l-12-14M80 0l12-14" transform="rotate(-30)"/><path d="M80 0l-12-14M80 0l12-14" transform="rotate(150)"/></svg>';
+  $('#wkView').appendChild(ring);
+  let raf = 0; const place = () => { const [cx, cy] = centre(), r = $('#wkView').getBoundingClientRect(); ring.style.transform = `translate(${cx - r.left}px, ${cy - r.top}px)`; raf = requestAnimationFrame(place); }; place();
+  // fallback for any screen: press and hold to keep turning clockwise
+  const hold = document.createElement('button'); hold.className = 'holdbtn holdbtn--spin holdbtn--float'; hold.innerHTML = `<i></i><span>${I.roll}${label}</span>`;
+  $('#wkView').appendChild(hold);
+  let on = false, hraf = 0, t0 = 0;
+  const spin = now => { if (!on) return; const dt = Math.min(0.25, (now - t0) / 1000); t0 = now; onTurn(dt * Math.PI * 2 / 1.6); hraf = requestAnimationFrame(spin); };
+  hold.addEventListener('pointerdown', e => { e.preventDefault(); unlockAudio(); on = true; hold.classList.add('is-on'); hold.setPointerCapture?.(e.pointerId); t0 = performance.now(); hraf = requestAnimationFrame(spin); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => hold.addEventListener(ev, () => { on = false; hold.classList.remove('is-on'); cancelAnimationFrame(hraf); }));
+  return () => {
+    on = false; cancelAnimationFrame(hraf); cancelAnimationFrame(raf); ring.remove(); hold.remove();
+    el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+  };
 }
 /** Grab a 3D part and turn it: pointer must start on `hit` (or within 70px of it); the twist is measured around `centre()` on screen. */
 const ray = new THREE.Raycaster();
@@ -287,11 +309,12 @@ async function taskDeburr() {
   await new Promise(res => {
     body(`<p class="wk__q">لف المقوار جوه طرف الماسورة (${need} لفة) لحد ما الرايش يتشال.</p><div class="progress"><span>${I.roll}</span><div class="meter"><i id="dbBar" style="width:0%"></i></div></div>`);
     const unbind = circleDrag(d => {
+      if (d < 0) return;
       V.reamer.rotation.x += d; turned += Math.abs(d) / (Math.PI * 2);
       const p = Math.min(1, turned / need); $('#dbBar').style.width = p * 100 + '%';
       V.burr.scale.setScalar(Math.max(0.01, (S.burrBig ? 1.6 : 1) * (1 - p))); if (Math.random() < 0.2) sfx.brush();
       if (p >= 1) { unbind(); V.burr.visible = false; gsap.to(V.reamer.position, { x: CUT_X + 0.3, duration: .6, onComplete: () => (V.reamer.visible = false) }); wmsg('الطرف نضيف من جوه.', 'ok', 2500); setTimeout(res, 1000); }
-    });
+    }, 'اضغط مع الاستمرار: لف المقوار');
   });
   if (S.burrBig) wmsg('الرايش كان كبير بسبب التغذية الزيادة، وده خد وقت ومجهود زيادة.', 'info', 4500);
 }

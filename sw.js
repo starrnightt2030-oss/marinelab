@@ -1,5 +1,5 @@
 // Offline cache: everything the app needs is precached on install.
-const CACHE = 'marinelab-v7';
+const CACHE = 'marinelab-v8';
 const FILES = [
   "./",
   "./index.html",
