@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createWorld, DIM, MAT, gasket, elbowAssembly, studBolt, dropletSprite, ringSprite } from './scene.js';
 import { audio, sfx, speak, stopSpeaking, unlockAudio, leakSound } from './audio.js';
+import { VOICE } from './voice-lines.js';
 
 const gsap = window.gsap;
 const $ = (s, r = document) => r.querySelector(s);
@@ -33,24 +34,12 @@ const I = {
 
 // ---------------- content ----------------
 const STEPS = [
-  { id: 'ppe', title: 'مهمات الوقاية',
-    learn: 'أهلاً بيك في الورشة. قبل أي شغل لازم تلبس مهمات الوقاية: الخوذة، والنضارة، والجوانتي، وحذاء الأمان. وخلي بالك، فيه حاجات ممنوع تدخل بيها الورشة خالص.',
-    test: 'اختار مهمات الوقاية المطلوبة قبل بدء العمل.' },
-  { id: 'clean', title: 'تنظيف وجه الفلانشة',
-    learn: 'وش الفلانشة عليه صدأ ووساخة. امسح عليه بصباعك أو بالماوس كأنك ماسك فرشة سلك، لحد ما الوش يلمع. أي وساخة على الوش ممكن تعمل تسريب بعدين.',
-    test: 'جهّز وجه الفلانشة للتجميع.' },
-  { id: 'fit', title: 'الحشية والكوع',
-    learn: 'اسحب الحشية المقاس الصح وحطها على وش الفلانشة، وبعدين اسحب الكوع. حسب الرسم، فتحة الكوع لازم تطلع لفوق ناحية المبادل الحراري. لو جه في اتجاه تاني لفّه بزرار اللف قبل ما تقرّبه من الفلانشة.',
-    test: 'ركّب الكوع على الفلانشة حسب الرسم: الخط يطلع لأعلى.' },
-  { id: 'bolts', title: 'تركيب المسامير',
-    learn: 'ممتاز. دلوقتي ركّب المسامير التمانية. اضغط على كل خرم منوّر علشان تدخّل المسمار وتركب الصواميل باليد.',
-    test: 'ركّب مسامير الوصلة.' },
-  { id: 'torque', title: 'الربط النجمي',
-    learn: 'اربط المسامير بالتتابع النجمي. ابدأ بأي مسمار، وبعده المسمار اللي قصاده على طول، وبعدين اللي في النص بينهم. كده الحشية بتتضغط بالتساوي ومفيش ناحية تفضل سايبة.',
-    test: 'اربط مسامير الوصلة بالترتيب الصحيح.' },
-  { id: 'test', title: 'اختبار الضغط',
-    learn: 'آخر خطوة: اختبار الضغط. دوس على زرار المضخة وخليك ضاغط لحد ما الضغط يوصل عشرة بار، وراقب الوصلة كويس.',
-    test: 'اعمل اختبار الضغط للوصلة حتى 10 بار.' },
+  { id: 'ppe', title: 'مهمات الوقاية', },
+  { id: 'clean', title: 'تنظيف وجه الفلانشة', },
+  { id: 'fit', title: 'الحشية والكوع', },
+  { id: 'bolts', title: 'تركيب المسامير', },
+  { id: 'torque', title: 'الربط النجمي', },
+  { id: 'test', title: 'اختبار الضغط', },
 ];
 const CATS = { safety: ['السلامة والوقاية', 15], prep: ['تجهيز الأسطح', 10], assembly: ['صحة التجميع', 35], bolting: ['ربط المسامير', 25], testing: ['اختبار الضغط', 15] };
 const BADGES = { safety: 'سلامة أولاً', noleak: 'من غير تسريب', star: 'ربط مثالي', fast: 'إيد سريعة' };
@@ -86,11 +75,11 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-action]'); if (!b) return;
   unlockAudio();
   const a = b.dataset.action;
-  if (a === 'sound') { audio.on = !audio.on; document.querySelectorAll('[data-action="sound"]').forEach(x => x.setAttribute('aria-pressed', audio.on)); if (!audio.on) { stopSpeaking(); leakSound(0); } }
+  if (a === 'sound') { audio.on = !audio.on; document.querySelectorAll('[data-action="sound"]').forEach(x => x.setAttribute('aria-pressed', audio.on)); if (!audio.on) { stopVoice(); leakSound(0); } }
   if (a === 'fullscreen') { const el = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen?.())?.catch?.(() => {}); }
   if (a === 'start') startExercise();
   if (a === 'home') { leaveWorkshop(); }
-  if (a === 'replay') narrate(true);
+  if (a === 'replay') narrate();
   if (a === 'again') startExercise();
   if (a === 'gohome') { show('home'); renderHome(); }
 });
@@ -196,11 +185,22 @@ function toast(msg, kind = 'err', ms = 3200) {
   gsap.fromTo(t, { y: -16, opacity: 0 }, { y: 0, opacity: 1, duration: .3 });
   clearTimeout(toastTimer); toastTimer = setTimeout(() => gsap.to(t, { opacity: 0, duration: .3, onComplete: () => (t.hidden = true) }), ms);
 }
-function say(text, speakIt = true) {
-  $('#sayText').textContent = text;
-  if (speakIt) speak(text, () => $('#say').classList.add('is-speaking'), () => $('#say').classList.remove('is-speaking'));
+// recorded voice clips (Shakir) with the device's Arabic voice as fallback
+let clip = null;
+function stopVoice() { stopSpeaking(); if (clip) { clip.pause(); clip = null; } $('#say').classList.remove('is-speaking'); }
+function playLine(id) {
+  stopVoice();
+  if (!audio.on || !VOICE[id]) return;
+  const L = VOICE[id], a = new Audio(`assets/voice/${id}.mp3`);
+  const on = () => $('#say').classList.add('is-speaking'), off = () => $('#say').classList.remove('is-speaking');
+  let fell = false;
+  const fallback = () => { if (fell || clip !== a) return; fell = true; clip = null; speak(L.s || L.t, on, off); };
+  clip = a; a.onplay = on; a.onended = off; a.onerror = fallback;
+  a.play().catch(fallback);
 }
-function narrate(force) { const st = STEPS[S.step]; say(st[S.mode], force || S.mode === 'learn'); }
+function say(id) { $('#sayText').textContent = VOICE[id].t; playLine(id); }
+function fb(id, kind = 'err', ms = 3600) { toast(VOICE[id].t, kind, ms); playLine(id); }
+function narrate() { say(`${STEPS[S.step].id}_${S.mode}`); }
 function dock(items, label = '') {
   const d = $('#dock'); d.innerHTML = items ? `<div class="dock__row">${items}</div>${label ? `<span class="dock__label">${label}</span>` : ''}` : '';
   requestAnimationFrame(() => document.documentElement.style.setProperty('--dock-h', d.offsetHeight ? d.offsetHeight + 'px' : '0px'));
@@ -236,7 +236,7 @@ async function startExercise() {
   enterStep(0);
 }
 function leaveWorkshop() {
-  stopSpeaking(); leakSound(0); if (S) clearInterval(S.timer); S = null;
+  stopVoice(); leakSound(0); if (S) clearInterval(S.timer); S = null;
   show('home'); renderHome();
 }
 function resetScene() {
@@ -271,8 +271,8 @@ function stepPPE() {
     const b = e.target.closest('[data-ppe]'); if (!b || b.classList.contains('is-picked')) return;
     const p = PPE.find(x => x.k === b.dataset.ppe);
     if (p.ok) { b.classList.add('is-picked'); sfx.wear(); S.ppe.add(p.k); gsap.fromTo(b, { scale: .9 }, { scale: 1, duration: .3, ease: 'back.out(3)' });
-      if (S.ppe.size === 4) { toast('جاهز للشغل. مهمات الوقاية كاملة', 'ok', 2000); $('#dock').onclick = null; setTimeout(nextStep, 900); } }
-    else { b.classList.add('is-wrong', 'is-used'); sfx.error(); toast(p.why); penalize('safety', 5, 'اختيار غير آمن: ' + p.t); }
+      if (S.ppe.size === 4) { fb('ppe_ok', 'ok', 2600); $('#dock').onclick = null; setTimeout(nextStep, 900); } }
+    else { b.classList.add('is-wrong', 'is-used'); sfx.error(); fb('ppe_' + p.k); penalize('safety', 5, 'اختيار غير آمن: ' + p.t); }
   };
 }
 
@@ -307,7 +307,7 @@ function brushAt(uv) {
     if (pct >= 0.85 && !S.cleanDone) {
       S.cleanDone = true; $('#stage').classList.remove('is-brush');
       gsap.to(W.dirt.material, { opacity: 0, duration: .6, onComplete: () => (W.dirt.visible = false) });
-      toast('وش الفلانشة نضيف ولامع', 'ok', 2000); setTimeout(nextStep, 900);
+      fb('clean_ok', 'ok', 2200); setTimeout(nextStep, 900);
     }
   }
 }
@@ -331,7 +331,7 @@ function renderFitDock() {
   if (hasElbowLoose) {
     html += `<div class="actions">
       <button class="btn btn--amber" data-elbow="roll">${I.roll}لف الكوع 90°</button>
-      <button class="btn" data-elbow="flip">${I.flip}اقلب الوش</button>
+      <button class="btn" data-elbow="flip">${I.flip}اقلب الوجه</button>
       <span class="pill" id="orient">${orientText()}</span></div>`;
   }
   dock(html, hasElbowLoose ? 'اسحب الكوع لحد الفلانشة بعد ما تظبط اتجاهه' : 'اسحب القطعة من هنا للفلانشة، أو اضغط عليها مرة');
@@ -374,7 +374,7 @@ function trayDown(e) {
   const b = e.currentTarget; if (b.classList.contains('is-used')) return;
   e.preventDefault(); unlockAudio();
   const kind = b.dataset.part;
-  if (kind === 'gasket' && S.elbowOn) { toast('الكوع متركب بالفعل. لازم تفك الوصلة الأول.'); sfx.error(); return; }
+  if (kind === 'gasket' && S.elbowOn) { fb('elbow_busy'); sfx.error(); return; }
   const obj = spawnPart(kind);
   obj.position.copy(STAGING[kind]);
   const sx = e.clientX, sy = e.clientY;
@@ -455,7 +455,7 @@ function trySnap(obj) {
   if (kind === 'gasket' || kind === 'gasketSmall') {
     if (obj.position.distanceTo(target) > 0.14) return;
     if (kind === 'gasketSmall') {
-      sfx.error(); toast('الحشية دي مقاس DN80، أصغر من الفلانشة DN100. رجّعها واختار المقاس الصح.');
+      sfx.error(); fb('gasket_small', 'err', 4500);
       penalize('assembly', 4, 'اختيار حشية بمقاس غير متوافق (DN80)');
       gsap.to(obj.position, { y: 0.02, x: 0.6, duration: .7, ease: 'power2.in', onComplete: () => { W.scene.remove(obj); loose = loose.filter(o => o !== obj); } });
       return;
@@ -463,7 +463,7 @@ function trySnap(obj) {
     if (S.elbowOn) return;
     loose = loose.filter(o => o !== obj);
     gsap.to(obj.position, { x: 0, y: DIM.pipeY, z: 0, duration: .35, ease: 'power2.out', onComplete: () => sfx.thunk() });
-    S.gasketOn = true; S.gasketObj = obj; toast('الحشية في مكانها على وش الفلانشة', 'ok', 1800);
+    S.gasketOn = true; S.gasketObj = obj; fb('gasket_ok', 'ok', 2000);
     if (S.ghost) gsap.to(S.ghost.position, { x: DIM.gasketT, duration: .3 });
     renderFitDock();
     return;
@@ -472,22 +472,22 @@ function trySnap(obj) {
     const g = S.gasketOn ? DIM.gasketT : 0.0005;
     target.x = g;
     if (obj.position.distanceTo(target) > 0.16) return;
-    if (S.flipped) { sfx.error(); toast('وش فلانشة الكوع لازم يقابل وش فلانشة الماسورة. اضغط «اقلب الوش».'); penalize('assembly', 3, 'محاولة تركيب الكوع بوش مقلوب'); bounceBack(obj); return; }
+    if (S.flipped) { sfx.error(); fb('flip', 'err', 4200); penalize('assembly', 3, 'محاولة تركيب الكوع بوش مقلوب'); bounceBack(obj); return; }
     if (S.roll !== 0) {
       sfx.error(); S.orientErr++;
-      toast(`اتجاه الكوع غلط: الفتحة رايحة ${ORIENT[S.roll]}، والرسم بيقول لفوق ناحية المبادل الحراري.`);
+      fb('orient', 'err', 4200);
       if (S.orientErr <= 3) penalize('assembly', 3, 'محاولة تركيب الكوع باتجاه مخالف للرسم');
       bounceBack(obj); return;
     }
     if (!S.gasketOn && S.mode === 'learn') {
-      sfx.error(); toast('استنى! نسيت الحشية. من غيرها الوصلة هتسرّب. حط الحشية الأول.', 'info', 4000);
+      sfx.error(); fb('no_gasket', 'info', 4200);
       penalize('assembly', 2, 'محاولة تركيب الكوع قبل الحشية'); bounceBack(obj); return;
     }
     loose = loose.filter(o => o !== obj);
     S.elbowOn = true;
     gsap.to(obj.position, { x: target.x, y: target.y, z: 0, duration: .5, ease: 'power3.out', onComplete: () => { sfx.clank(); } });
     if (S.ghost) { W.scene.remove(S.ghost); S.ghost = null; }
-    toast('الكوع اتركب في الاتجاه الصح', 'ok', 1800);
+    fb('elbow_ok', 'ok', 2000);
     setTimeout(nextStep, 1000);
   }
 }
@@ -547,7 +547,7 @@ function tightenNut(i) {
   if (S.mode === 'learn' && !cand.length) {
     sfx.error();
     const prev = starCandidates(S.torqueSeq); const next = prev[0][S.torqueSeq.length];
-    toast(S.torqueSeq.length === 1 ? 'بعد أول مسمار، اربط المسمار اللي قصاده على طول (المنوّر).' : 'مش ده. الربط النجمي بيتنقل بالعرض. اربط المسمار المنوّر.', 'info');
+    fb(S.torqueSeq.length === 1 ? 'torque_opposite' : 'torque_next', 'info');
     penalize('bolting', 2, 'محاولة ربط مسمار خارج التتابع النجمي');
     highlightNext([next]);
     return;
@@ -615,10 +615,10 @@ function tickTest(dt) {
 }
 function testFail() {
   S.testOver = true; S.hold = false; S.testFails++;
-  sfx.error(); toast('تسريب عند الوصلة! الضغط مش بيعلى. الحشية مش موجودة بين الفلانشتين.', 'err', 5000);
+  sfx.error(); toast('تسريب عند الوصلة! الضغط لا يرتفع، والحشية غير موجودة بين الفلانشتين.', 'err', 5000);
   if (S.testFails === 1) { penalize('testing', 15, 'فشل اختبار الضغط: تسريب عند الوصلة'); penalize('assembly', 10, 'قفل الوصلة بدون حشية'); }
   $('#pState').textContent = 'فشل: تسريب';
-  say('في تسريب واضح عند الوصلة. الوصلة اتقفلت من غير حشية. فك المسامير، وحط الحشية، وركّب تاني.', true);
+  say('leak_fail');
   dock(`<button class="btn btn--amber btn--xl" id="fixJoint">${I.wrench}فك الوصلة وصلّح</button>`);
   $('#fixJoint').addEventListener('click', disassemble);
 }
@@ -635,7 +635,7 @@ function disassemble() {
 function testPass() {
   S.testOver = true; S.hold = false; leak.level = 0; leakSound(0);
   $('#pState').textContent = 'ناجح: لا يوجد تسريب';
-  sfx.win(); toast('الوصلة ثابتة على 10 bar من غير أي تسريب. شغل محترم!', 'ok', 3000);
+  sfx.win(); fb('pass', 'ok', 3200);
   burst();
   setTimeout(finish, 2200);
 }
@@ -649,7 +649,7 @@ function burst() {
 
 // ---------------- result ----------------
 function finish() {
-  clearInterval(S.timer); stopSpeaking();
+  clearInterval(S.timer); stopVoice();
   const time = elapsed(), total = scoreNow();
   const stars = total >= 90 ? 3 : total >= 70 ? 2 : 1;
   const earned = [];

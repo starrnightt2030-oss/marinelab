@@ -72,7 +72,7 @@ let voice = null;
 function pickVoice() {
   if (!('speechSynthesis' in window)) return null;
   const vs = speechSynthesis.getVoices();
-  voice = vs.find(v => /ar[-_]EG/i.test(v.lang)) || vs.find(v => /^ar/i.test(v.lang)) || null;
+  voice = vs.find(v => /Shakir/i.test(v.name)) || vs.find(v => /ar[-_]EG/i.test(v.lang) && /Natural|Online/i.test(v.name)) || vs.find(v => /ar[-_]EG/i.test(v.lang)) || vs.find(v => /^ar/i.test(v.lang)) || null;
   return voice;
 }
 if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
