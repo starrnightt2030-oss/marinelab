@@ -192,6 +192,18 @@ svg{width:1.25rem;height:1.25rem;fill:none;stroke:currentColor;stroke-width:2;st
 
 .credit--hud{position:absolute;bottom:0;inset-inline:0;padding:.15rem .8rem max(.15rem,env(safe-area-inset-bottom));font-size:.68rem;opacity:.8;pointer-events:none}
 
+/* trainee PPE card */
+.worker{position:absolute;top:5.2rem;inset-inline-end:calc(max(.9rem,env(safe-area-inset-left)) + var(--tap) + .7rem);width:14rem;padding:.8rem;border-radius:var(--r);background:var(--glass);border:1px solid var(--rule);backdrop-filter:blur(8px);display:flex;flex-direction:column;gap:.4rem}
+.worker__title{font-size:.85rem;color:var(--muted);font-weight:500}
+.worker svg{width:100%;height:auto;stroke:none;background:radial-gradient(circle at 50% 40%,rgba(47,124,246,.22),transparent 70%);border-radius:10px}
+.worker .is-bad{filter:drop-shadow(0 0 6px #FF4D57)}
+.worker__list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.3rem}
+.worker__list li{display:flex;align-items:center;gap:.3rem;padding:.25rem .4rem;border-radius:8px;font-size:.72rem;color:var(--muted);border:1px solid var(--rule)}
+.worker__list li svg{width:1.1rem;height:1.1rem;background:none;stroke:currentColor;stroke-width:2.4}
+.worker__list li.is-on{color:var(--mint);border-color:rgba(46,230,166,.5);background:rgba(46,230,166,.08)}
+.pill--ppe{color:var(--mint);border-color:rgba(46,230,166,.45);gap:.2rem}
+.pill--ppe svg{width:1.05rem;height:1.05rem;stroke-width:3}
+
 /* floating 3D labels */
 .label3d{position:absolute;left:0;top:0;pointer-events:none;padding:.25rem .6rem;border-radius:8px;font-size:.78rem;font-weight:600;white-space:nowrap;background:rgba(7,15,34,.85);border:1px solid var(--blue);color:var(--blue-soft);transform:translate(-50%,-140%)}
 
@@ -252,6 +264,9 @@ svg{width:1.25rem;height:1.25rem;fill:none;stroke:currentColor;stroke-width:2;st
   .gauge{width:9rem;top:7.6rem;transform:none}
   .toast{top:7.4rem;font-size:.9rem}
   .credit--hud{display:none}
+  .worker{top:7.4rem;inset-inline-end:.6rem;width:8.6rem;padding:.5rem}
+  .worker__list{display:none}
+  .pill--ppe{display:none!important}
   .log li{grid-template-columns:3.4rem minmax(0,1fr)}
   .log li span:last-child{grid-column:2}
 }

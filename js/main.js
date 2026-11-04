@@ -246,7 +246,7 @@ function resetScene() {
   const c = W.dirtTex.userData.canvas.getContext('2d');
   c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, 256, 256); c.drawImage(W.dirtOriginal, 0, 0);
   W.dirtTex.needsUpdate = true; W.dirt.material.opacity = 1; W.dirt.visible = true;
-  $('#gauge').hidden = true; $('#toast').hidden = true;
+  $('#gauge').hidden = true; $('#toast').hidden = true; $('#worker').hidden = true; $('#ppePill').hidden = true;
 }
 function nextStep() { sfx.ok(); enterStep(S.step + 1); }
 function enterStep(i) {
@@ -264,15 +264,66 @@ const PPE = [
   { k: 'scarf', t: 'كوفية طويلة', ok: false, why: 'اللبس الواسع والكوفية خطر: ممكن تتلف في أي جزء دوّار.' },
   { k: 'sandal', t: 'شبشب', ok: false, why: 'الشبشب ممنوع. لازم حذاء أمان بمقدمة حديد يحمي صوابعك.' },
 ];
+function workerSVG() {
+  return `<svg viewBox="0 0 200 300" role="img" aria-label="المتدرب ومهمات الوقاية">
+  <defs><linearGradient id="cov" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#173f8f"/><stop offset=".5" stop-color="#2459c4"/><stop offset="1" stop-color="#173f8f"/></linearGradient>
+  <linearGradient id="hel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#f2a900"/></linearGradient>
+  <linearGradient id="glv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb35c"/><stop offset="1" stop-color="#e2711d"/></linearGradient></defs>
+  <ellipse cx="100" cy="292" rx="58" ry="6" fill="#000" opacity=".35"/>
+  <g id="w-shoes"><rect x="58" y="270" width="38" height="14" rx="6" fill="#6b7280"/><rect x="104" y="270" width="38" height="14" rx="6" fill="#6b7280"/></g>
+  <rect x="62" y="190" width="34" height="84" rx="8" fill="url(#cov)"/><rect x="104" y="190" width="34" height="84" rx="8" fill="url(#cov)"/>
+  <rect x="62" y="242" width="34" height="6" fill="#d9e2ef"/><rect x="104" y="242" width="34" height="6" fill="#d9e2ef"/>
+  <path d="M66 100 L44 176" stroke="url(#cov)" stroke-width="22" stroke-linecap="round"/><path d="M134 100 L156 176" stroke="url(#cov)" stroke-width="22" stroke-linecap="round"/>
+  <path d="M60 98 Q100 84 140 98 L146 198 L54 198 Z" fill="url(#cov)"/>
+  <rect x="56" y="150" width="88" height="7" fill="#d9e2ef"/><rect x="56" y="182" width="88" height="8" fill="#0f2c66"/><rect x="94" y="181" width="12" height="10" rx="2" fill="#c9d3e3"/>
+  <circle cx="122" cy="118" r="7" fill="#fff"/><circle cx="122" cy="118" r="5" fill="#E8323C"/>
+  <circle cx="42" cy="184" r="10" fill="#d9a77f"/><circle cx="158" cy="184" r="10" fill="#d9a77f"/>
+  <rect x="91" y="80" width="18" height="12" fill="#d9a77f"/>
+  <circle cx="100" cy="62" r="25" fill="#e2b48c"/><path d="M76 56 Q100 30 124 56 Q112 44 100 46 Q86 46 76 56Z" fill="#3b2a20"/>
+  <circle cx="91" cy="64" r="2.6" fill="#2a1d14"/><circle cx="109" cy="64" r="2.6" fill="#2a1d14"/><path d="M93 75 Q100 80 107 75" stroke="#7a4a32" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <g id="w-scarf" class="wl"><path d="M80 86 Q100 98 120 86 L122 96 Q100 108 78 96Z" fill="#c2410c"/><path d="M108 98 L118 150 L106 146 L100 100Z" fill="#c2410c"/></g>
+  <g id="w-watch" class="wl"><rect x="34" y="166" width="16" height="9" rx="2" fill="#1f2937"/><circle cx="42" cy="170" r="5" fill="#cbd5e1" stroke="#1f2937"/><circle cx="160" cy="190" r="3" fill="none" stroke="#facc15" stroke-width="2"/></g>
+  <g id="w-sandal" class="wl"><rect x="58" y="279" width="38" height="6" rx="3" fill="#0ea5e9"/><rect x="104" y="279" width="38" height="6" rx="3" fill="#0ea5e9"/><path d="M70 279 L77 270 L84 279M116 279 L123 270 L130 279" stroke="#0ea5e9" stroke-width="3" fill="none"/></g>
+  <g id="w-boots" class="wl"><path d="M58 248 h38 v26 q0 12 -12 12 h-30 q-4 0 -4 -6z" fill="#111827"/><path d="M104 248 h38 v32 q0 6 -4 6 h-30 q-4 0 -4 -6z" fill="#111827"/><rect x="58" y="276" width="20" height="10" rx="4" fill="#9ca3af"/><rect x="122" y="276" width="20" height="10" rx="4" fill="#9ca3af"/><rect x="58" y="254" width="38" height="4" fill="#facc15"/><rect x="104" y="254" width="38" height="4" fill="#facc15"/></g>
+  <g id="w-gloves" class="wl"><rect x="29" y="166" width="26" height="32" rx="10" fill="url(#glv)"/><rect x="145" y="166" width="26" height="32" rx="10" fill="url(#glv)"/><rect x="29" y="166" width="26" height="7" rx="3" fill="#9a3412"/><rect x="145" y="166" width="26" height="7" rx="3" fill="#9a3412"/></g>
+  <g id="w-goggles" class="wl"><rect x="74" y="60" width="52" height="5" rx="2" fill="#1f2937"/><rect x="80" y="56" width="18" height="13" rx="5" fill="#7dd3fc" fill-opacity=".75" stroke="#1f2937" stroke-width="2"/><rect x="102" y="56" width="18" height="13" rx="5" fill="#7dd3fc" fill-opacity=".75" stroke="#1f2937" stroke-width="2"/><path d="M84 59 l5 0" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g>
+  <g id="w-helmet" class="wl"><path d="M70 54 A30 30 0 0 1 130 54 Z" fill="url(#hel)"/><rect x="64" y="50" width="72" height="9" rx="4.5" fill="#f2a900"/><path d="M100 26 v26" stroke="#e09600" stroke-width="5"/><circle cx="86" cy="42" r="5" fill="#fff"/><circle cx="86" cy="42" r="3.4" fill="#2F7CF6"/></g>
+  </svg>`;
+}
+const PPE_OK = ['helmet', 'goggles', 'gloves', 'boots'];
+function showWorker() {
+  const w = $('#worker');
+  w.innerHTML = `<b class="worker__title">المتدرب</b>${workerSVG()}<ul class="worker__list">${PPE_OK.map(k => `<li data-slot="${k}">${I[k]}<span>${PPE.find(p => p.k === k).t}</span></li>`).join('')}</ul>`;
+  w.querySelectorAll('.wl').forEach(g => (g.style.opacity = 0));
+  w.hidden = false; gsap.fromTo(w, { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: .5, ease: 'power2.out' });
+}
+function dress(k, ok) {
+  const g = $('#w-' + k); if (!g) return;
+  if (ok) {
+    if (k === 'boots') { const sh = $('#w-shoes'); if (sh) gsap.to(sh, { opacity: 0, duration: .3 }); }
+    gsap.fromTo(g, { opacity: 0, y: k === 'helmet' || k === 'goggles' ? -40 : 30 }, { opacity: 1, y: 0, duration: .55, ease: 'back.out(2)' });
+    const li = document.querySelector(`[data-slot="${k}"]`); if (li) { li.classList.add('is-on'); gsap.fromTo(li, { scale: .8 }, { scale: 1, duration: .4, ease: 'back.out(3)' }); }
+  } else {
+    g.classList.add('is-bad');
+    gsap.timeline().fromTo(g, { opacity: 0 }, { opacity: 1, duration: .25 }).to(g, { x: 6, duration: .06, repeat: 5, yoyo: true }).to(g, { opacity: 0, duration: .5, delay: 1.2 });
+  }
+}
+function finishWorker() {
+  const w = $('#worker');
+  gsap.to(w, { scale: .6, opacity: 0, duration: .5, delay: 1.1, ease: 'power2.in', transformOrigin: 'top left', onComplete: () => { w.hidden = true; gsap.set(w, { scale: 1 }); } });
+  const pill = $('#ppePill'); pill.innerHTML = PPE_OK.map(k => I[k]).join(''); pill.hidden = false;
+  gsap.fromTo(pill, { scale: 0 }, { scale: 1, duration: .5, delay: 1.4, ease: 'back.out(3)' });
+}
 function stepPPE() {
   camTo('iso');
+  showWorker();
   dock(PPE.map(p => `<button class="tile" data-ppe="${p.k}">${I[p.k]}<span>${p.t}</span></button>`).join(''), 'اختار اللي هتلبسه قبل ما تدخل الورشة (4 حاجات)');
   $('#dock').onclick = e => {
     const b = e.target.closest('[data-ppe]'); if (!b || b.classList.contains('is-picked')) return;
     const p = PPE.find(x => x.k === b.dataset.ppe);
-    if (p.ok) { b.classList.add('is-picked'); sfx.wear(); S.ppe.add(p.k); gsap.fromTo(b, { scale: .9 }, { scale: 1, duration: .3, ease: 'back.out(3)' });
-      if (S.ppe.size === 4) { fb('ppe_ok', 'ok', 2600); $('#dock').onclick = null; setTimeout(nextStep, 900); } }
-    else { b.classList.add('is-wrong', 'is-used'); sfx.error(); fb('ppe_' + p.k); penalize('safety', 5, 'اختيار غير آمن: ' + p.t); }
+    if (p.ok) { b.classList.add('is-picked'); sfx.wear(); S.ppe.add(p.k); dress(p.k, true); gsap.fromTo(b, { scale: .9 }, { scale: 1, duration: .3, ease: 'back.out(3)' });
+      if (S.ppe.size === 4) { fb('ppe_ok', 'ok', 2600); $('#dock').onclick = null; finishWorker(); setTimeout(nextStep, 2200); } }
+    else { b.classList.add('is-wrong', 'is-used'); sfx.error(); dress(p.k, false); fb('ppe_' + p.k); penalize('safety', 5, 'اختيار غير آمن: ' + p.t); }
   };
 }
 
@@ -285,26 +336,38 @@ function stepClean() {
   addLabel('وجه الفلانشة · Raised Face', new THREE.Vector3(0.01, DIM.pipeY + 0.1, 0));
   $('#stage').classList.add('is-brush');
 }
+// only the raised-face ring is visible/brushable, so progress is measured on that ring only
+let ringIdx = null;
 function alphaSum() {
+  if (!ringIdx) {
+    ringIdx = []; const rIn = 128 * (DIM.pipeID / 2) / (DIM.rfD / 2) + 3, rOut = 125;
+    for (let y = 0; y < 256; y += 2) for (let x = 0; x < 256; x += 2) { const r = Math.hypot(x - 128, y - 128); if (r > rIn && r < rOut) ringIdx.push((y * 256 + x) * 4 + 3); }
+  }
   const d = W.dirtTex.userData.canvas.getContext('2d').getImageData(0, 0, 256, 256).data; let s = 0;
-  for (let i = 3; i < d.length; i += 16) s += d[i]; return s;
+  for (const i of ringIdx) s += d[i]; return s;
+}
+function scrub(c, x, y) {
+  const g = c.createRadialGradient(x, y, 0, x, y, 30); g.addColorStop(0, 'rgba(0,0,0,.95)'); g.addColorStop(.6, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, 30, 0, 7); c.fill();
 }
 function brushAt(uv) {
+  if (S.cleanDone || !$('#cleanBar')) return;
   const c = W.dirtTex.userData.canvas.getContext('2d');
   c.globalCompositeOperation = 'destination-out';
-  const x = uv.x * 256, y = (1 - uv.y) * 256;
-  const g = c.createRadialGradient(x, y, 0, x, y, 26); g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = g; c.beginPath(); c.arc(x, y, 26, 0, 7); c.fill();
+  const x = uv.x * 256, y = (1 - uv.y) * 256, L = S.lastUV;
+  if (L && Math.hypot(x - L[0], y - L[1]) < 90) { const n = Math.ceil(Math.hypot(x - L[0], y - L[1]) / 8); for (let k = 1; k <= n; k++) scrub(c, L[0] + (x - L[0]) * k / n, L[1] + (y - L[1]) * k / n); }
+  else scrub(c, x, y);
+  S.lastUV = [x, y];
   c.globalCompositeOperation = 'source-over';
   W.dirtTex.needsUpdate = true;
   if (Math.random() < 0.35) sfx.brush();
   const now = performance.now();
-  if (now - S.cleanLast > 140) {
+  if (now - S.cleanLast > 120) {
     S.cleanLast = now;
     const pct = Math.min(1, 1 - alphaSum() / S.cleanBase);
-    const shown = Math.min(100, Math.round(pct / 0.85 * 100));
+    const shown = Math.min(100, Math.round(pct / 0.8 * 100));
     $('#cleanBar').style.width = shown + '%'; $('#cleanPct').textContent = shown + '%';
-    if (pct >= 0.85 && !S.cleanDone) {
+    if (pct >= 0.8 && !S.cleanDone) {
       S.cleanDone = true; $('#stage').classList.remove('is-brush');
       gsap.to(W.dirt.material, { opacity: 0, duration: .6, onComplete: () => (W.dirt.visible = false) });
       fb('clean_ok', 'ok', 2200); setTimeout(nextStep, 900);
@@ -445,7 +508,7 @@ function bindStagePointer() {
     setRay(e.clientX, e.clientY);
     const h = raycaster.intersectObject(W.dirt, false)[0]; if (h) brushAt(h.uv);
   });
-  const stop = () => { if (S && S.brushing) { S.brushing = false; W.controls.enabled = true; } };
+  const stop = () => { if (S && S.brushing) { S.brushing = false; S.lastUV = null; W.controls.enabled = true; } };
   addEventListener('pointerup', stop); addEventListener('pointercancel', stop);
 }
 
