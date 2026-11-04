@@ -159,6 +159,32 @@
   </div>
 </section>
 
+<!-- ============ WORK (2D/3D skill stations: measuring, cutting) ============ -->
+<section id="work" class="screen" aria-label="محطة مهارات">
+  <header class="topbar topbar--slim">
+    <button class="iconbtn" data-action="hub" aria-label="رجوع لمحطات المعمل"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <img src="assets/logo.png" alt="" class="topbar__logo topbar__logo--sm">
+    <div class="topbar__brand"><strong id="wkTitle">—</strong><span id="wkSub"></span></div>
+    <div class="topbar__tools">
+      <span class="pill" id="wkMode">تعلّم</span>
+      <span class="pill pill--level" id="wkLevel" data-level="easy">مبتدئ</span>
+      <span class="pill mono"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/></svg><span id="wkTimer">00:00</span></span>
+      <span class="pill pill--score mono"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg><span id="wkScore">100</span></span>
+      <button class="iconbtn" data-action="sound" aria-label="الصوت" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
+      <button class="iconbtn" data-action="fullscreen" aria-label="ملء الشاشة"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+  </header>
+  <div class="dr wk">
+    <div class="wk__view" id="wkView"></div>
+    <aside class="dr__panel glass wk__panel" aria-live="polite">
+      <div class="panel__head"><span class="eyebrow" id="wkStepNow">—</span><ol class="steps" id="wkSteps"></ol></div>
+      <div class="say" id="wkSay"><button class="iconbtn" data-action="replay" aria-label="إعادة الشرح"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button><p id="wkSayText">—</p></div>
+      <div class="msg" id="wkMsg" role="status" hidden></div>
+      <div id="wkBody" class="wk__body"></div>
+    </aside>
+  </div>
+</section>
+
 <!-- ============ STATION (3D exercise) ============ -->
 <section id="station" class="screen" aria-label="محطة التدريب">
   <header class="topbar topbar--slim">

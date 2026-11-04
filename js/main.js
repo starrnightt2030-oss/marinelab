@@ -6,6 +6,8 @@ import { $, $$, gsap, I, show, profile, saveProfile, level, playLine, stopVoice,
 import { flangeStation, __dbg as flangeDbg } from './stations/flange.js';
 import { libraryStation } from './stations/library.js';
 import { drawingStation } from './stations/drawing.js';
+import { measureStation } from './stations/measure.js';
+import { cutStation } from './stations/cut.js';
 import { ITEMS } from './tools3d.js';
 
 // ---------------- station catalogue ----------------
@@ -13,9 +15,9 @@ const STATIONS = [
   { id: 'library', cat: 'basics', icon: 'library', accent: 'cyan', t: 'مكتبة العِدد والمعدات', d: 'لِف كل عدة بإيدك، واعرف أجزاءها واستخدامها وتعليمات السلامة.', skills: ['القياس', 'العِدد اليدوية', 'مكونات المواسير'], live: true, kind: 'library' },
   { id: 'drawing', cat: 'drawing', icon: 'drawing', accent: 'amber', t: 'قراءة الرسومات الهندسية', d: 'رسومات أيزومترية لخطوط السفن والبترول: الرموز، الكميات، وأطوال القطع.', skills: ['الرموز', 'قائمة المواد', 'حساب الأطوال'], live: true, kind: 'sheet', station: drawingStation, scenarios: ['ship', 'oil'] },
   { id: 'flange', cat: 'ship', icon: 'twrench', accent: 'blue', t: 'تجميع واختبار وصلة فلانشة', d: 'تنظيف وفحص، حشية، كوع، ربط بالعزم بالتتابع النجمي، واختبار ضغط مع عيوب حقيقية لازم تشخّصها.', skills: ['الفحص', 'التجميع', 'العزم', 'الاختبار'], live: true, kind: 'sheet', station: flangeStation, scenarios: ['ship', 'oil'] },
-  { id: 'measure', cat: 'basics', icon: 'caliper', accent: 'cyan', t: 'القياس والشنكرة', d: 'القياس بالورنية والمتر، وتحديد نقاط القطع ومراكز الثقوب.', skills: ['الورنية', 'الشنكرة'], live: false },
+  { id: 'measure', cat: 'basics', icon: 'caliper', accent: 'cyan', t: 'القياس والشنكرة', d: 'قراءة الورنية بدقة 0.1 و0.05 و0.02 مم، قياس قطر الماسورة وتحديد مقاسها، وشنكرة طول القطع بالمتر.', skills: ['الورنية', 'مقاسات المواسير', 'الشنكرة'], live: true, kind: 'sheet', screen: 'work', station: measureStation },
   { id: 'bench', cat: 'basics', icon: 'file', accent: 'cyan', t: 'أعمال البرادة على المنجلة', d: 'القطع بالمنشار، البرد، التخريم، والقلوظة اليدوية.', skills: ['المنشار', 'المبرد', 'التخريم'], live: false },
-  { id: 'cut', cat: 'ship', icon: 'cutter', accent: 'blue', t: 'قطع وشطف المواسير', d: 'قطع عمودي بالقطاعة، شطف الطرف للحام، وفحص الطرف.', skills: ['القطاعة', 'الشطف'], live: false },
+  { id: 'cut', cat: 'basics', icon: 'cutter', accent: 'blue', t: 'قطع وشطف المواسير', d: 'تثبيت في المنجلة، قطع بالقطاعة مع التحكم في التغذية، إزالة الرايش، وشطفة 37.5° للحام.', skills: ['المنجلة', 'القطاعة', 'الشطف', 'الفحص'], live: true, kind: 'sheet', screen: 'work', station: cutStation },
   { id: 'thread', cat: 'ship', icon: 'thread', accent: 'blue', t: 'قلوظة ووصلات المواسير', d: 'عمل سن القلاووظ، الشريط، والربط بمفتاح المواسير.', skills: ['اللقمة', 'التسريب'], live: false },
   { id: 'seawater', cat: 'ship', icon: 'ship', accent: 'blue', t: 'خطوط السفن: مياه البحر والحريق', d: 'مشروع تركيب خط من الرسم داخل غرفة الماكينات، بالحوامل والصمامات.', skills: ['مشروع', 'الحوامل'], live: false },
   { id: 'oilgas', cat: 'oil', icon: 'oil', accent: 'red', t: 'خطوط البترول والغاز', d: 'فلانشات Class 300، حشيات حلزونية، وإجراءات العزل والأمان.', skills: ['التصنيفات', 'العزل'], live: false },
@@ -126,6 +128,7 @@ async function startLaunch() {
   const s = launch.station; $('#launchSheet').hidden = true;
   const opts = { mode: launch.mode, level: launch.level, scenario: launch.scenario };
   if (s.id === 'drawing') { go('drawing'); active = drawingStation; drawingStation.start(opts); return; }
+  if (s.screen === 'work') { go('work'); active = s.station; s.station.start(opts); return; }
   go('station'); active = s.station;
   const boot = $('#boot'); boot.hidden = false; boot.classList.remove('is-gone');
   await s.station.start(opts);
@@ -155,7 +158,7 @@ document.addEventListener('click', e => {
   if (a === 'intro-go') introGo();
   if (a === 'intro-done') introDone();
   if (a === 'hub') go('hub');
-  if (a === 'replay') replay();
+  if (a === 'replay') { if (active && active.replay) active.replay(); else replay(); }
   if (a === 'profile') { $('#profilePanel').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#playerName').focus(); }
   if (a === 'sheet-close') $('#launchSheet').hidden = true;
   if (a === 'launch') startLaunch();
