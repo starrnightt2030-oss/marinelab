@@ -241,7 +241,33 @@
 <script type="module" src="js/main.js"></script>
 <script>
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    // Forced update: check on every launch / return to the app; a new version blocks the screen and installs itself.
+    const showUpdate = (worker) => {
+      if (document.getElementById('forceUpdate')) return;
+      const d = document.createElement('div'); d.id = 'forceUpdate'; d.setAttribute('role', 'alertdialog'); d.setAttribute('aria-modal', 'true');
+      d.innerHTML = '<div class="fu__card"><div class="fu__icon"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg></div>' +
+        '<b class="fu__kicker">تحديث إجباري</b><h2>فيه نسخة جديدة من الورشة</h2><p>لازم تتحدّث دلوقتي علشان تكمّل بآخر المحطات والتعديلات.</p>' +
+        '<div class="fu__bar"><i></i></div><button class="btn btn--primary" id="fuGo">حدّث الآن <span id="fuN">(5)</span></button><small id="fuVer"></small></div>';
+      document.body.appendChild(d);
+      try { const ch = new MessageChannel(); ch.port1.onmessage = e => { document.getElementById('fuVer').textContent = String(e.data).replace('marinelab-v', 'الإصدار '); }; worker.postMessage('VERSION', [ch.port2]); } catch (e) { /* old worker */ }
+      let n = 5; const go = () => { clearInterval(t); d.classList.add('is-going'); document.getElementById('fuGo').disabled = true; document.getElementById('fuGo').textContent = 'جاري التحديث…'; worker.postMessage('SKIP_WAITING'); };
+      const t = setInterval(() => { n--; const el = document.getElementById('fuN'); if (el) el.textContent = '(' + n + ')'; if (n <= 0) go(); }, 1000);
+      document.getElementById('fuGo').addEventListener('click', go);
+    };
+    navigator.serviceWorker.addEventListener('message', e => { if (e.data === 'NEW_VERSION?' && e.source) e.source.postMessage('UPDATER'); });
+    navigator.serviceWorker.startMessages && navigator.serviceWorker.startMessages();
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading) return; reloading = true; location.reload(); });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+      const watch = w => w && w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdate(w); });
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdate(reg.waiting);
+      watch(reg.installing);
+      reg.addEventListener('updatefound', () => watch(reg.installing));
+      const check = () => reg.update().catch(() => {});
+      check();
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+      setInterval(check, 15 * 60 * 1000);
+    }).catch(() => {});
   }
 </script>
 </body>
