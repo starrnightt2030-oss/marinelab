@@ -146,13 +146,19 @@ export function weldNeckFlange() {
   return { group, face, anchors };
 }
 
-export function gasket(small = false) {
+export function gasket(small = false, damaged = false) {
   const D = DIM;
   const id = small ? 0.09 : D.gasketID, od = small ? 0.127 : D.gasketOD;
   const g = mesh(lathe([[id / 2, 0], [od / 2, 0], [od / 2, D.gasketT], [id / 2, D.gasketT], [id / 2, 0]], 72), small ? MAT.gasketSmall : MAT.gasket);
   g.geometry.rotateZ(-Math.PI / 2); // axis +X, thickness along +X
   const grp = new THREE.Group(); grp.add(g);
-  grp.userData = { kind: small ? 'gasketSmall' : 'gasket' };
+  if (damaged) { // radial tear + burnt patch: visible on inspection
+    const tear = mesh(new THREE.BoxGeometry(D.gasketT * 1.4, (od - id) / 2 * 0.85, 0.006), new THREE.MeshStandardMaterial({ color: 0x1b1410, roughness: 1 }));
+    tear.position.set(D.gasketT / 2, (id + od) / 4, 0); grp.add(tear);
+    const burn = mesh(new THREE.CylinderGeometry(0.014, 0.014, D.gasketT * 1.2, 16), new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 1 }));
+    burn.rotation.z = Math.PI / 2; burn.position.set(D.gasketT / 2, -(id + od) / 4 * 0.9, 0.03); grp.add(burn);
+  }
+  grp.userData = { kind: small ? 'gasketSmall' : 'gasket', damaged };
   return grp;
 }
 
@@ -258,8 +264,11 @@ function buildWorkshop(scene, logoImg) {
 }
 
 // ---------- world ----------
+export function ensureMaterials() { if (!MAT.steel) { makeTextures(); makeMaterials(); } }
+export { mesh, lathe, TEX };
+
 export async function createWorld(container, logoImg) {
-  makeTextures(); makeMaterials();
+  ensureMaterials();
   const big = Math.max(innerWidth, innerHeight) > 2400;
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, big ? 1.25 : 2));
@@ -309,12 +318,13 @@ export async function createWorld(container, logoImg) {
   dirt.position.y = 0.0004; spoolFl.group.add(dirt);
 
   const onResize = () => {
-    const w = container.clientWidth, h = container.clientHeight;
+    const w = container.clientWidth, h = container.clientHeight; if (!w || !h) return;
     renderer.setSize(w, h); camera.aspect = w / h;
     camera.fov = w / h < 0.8 ? 58 : 40;
     camera.updateProjectionMatrix();
   };
   addEventListener('resize', onResize); onResize();
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe(container);
 
   return { THREE, renderer, scene, camera, controls, spool, spoolFlange: spoolFl, dirt, dirtTex, onResize };
 }

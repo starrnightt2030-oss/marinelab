@@ -1,821 +1,175 @@
-import * as THREE from 'three';
-import { createWorld, DIM, MAT, gasket, elbowAssembly, studBolt, dropletSprite, ringSprite, wireBrush, torqueWrench } from './scene.js';
-import { createWorker } from './worker3d.js';
-import { audio, sfx, speak, stopSpeaking, unlockAudio, leakSound } from './audio.js';
+// App shell: intro → hub (learning stations) → station screens. Each station module owns its own screen logic.
+import { audio, sfx, unlockAudio, leakSound } from './audio.js';
+import { initAmbient, SERVICES } from './ambient.js';
 import { VOICE } from './voice-lines.js';
+import { $, $$, gsap, I, show, profile, saveProfile, level, playLine, stopVoice, replay, BADGES, LEVELS } from './ui.js';
+import { flangeStation, __dbg as flangeDbg } from './stations/flange.js';
+import { libraryStation } from './stations/library.js';
+import { drawingStation } from './stations/drawing.js';
+import { ITEMS } from './tools3d.js';
 
-const gsap = window.gsap;
-const $ = (s, r = document) => r.querySelector(s);
-const store = {
-  get(k, d) { try { const v = localStorage.getItem('ml3d:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('ml3d:' + k, JSON.stringify(v)); } catch { /* storage unavailable */ } },
-};
-
-// ---------------- icons ----------------
-const I = {
-  helmet: '<svg viewBox="0 0 48 48"><path d="M8 31a16 16 0 0 1 32 0"/><path d="M4 31h40v5H4z"/><path d="M20 15.5V12h8v3.5"/><path d="M24 15v16"/></svg>',
-  goggles: '<svg viewBox="0 0 48 48"><rect x="5" y="17" width="16" height="13" rx="5"/><rect x="27" y="17" width="16" height="13" rx="5"/><path d="M21 23h6M5 22H2M43 22h3"/></svg>',
-  gloves: '<svg viewBox="0 0 48 48"><path d="M16 42V22l-4-6a2.5 2.5 0 0 1 4-3l4 5V8a2.5 2.5 0 0 1 5 0v11-13a2.5 2.5 0 0 1 5 0v13-10a2.5 2.5 0 0 1 5 0v18c0 6-3 10-6 13v5z"/><path d="M16 36h17"/></svg>',
-  boots: '<svg viewBox="0 0 48 48"><path d="M12 6h14v20l12 6c3 1.5 4 4 4 7v3H8V6z"/><path d="M8 36h34M12 14h14"/></svg>',
-  watch: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="9"/><path d="M24 19v5l3 3M19 16l1-10h8l1 10M19 32l1 10h8l1-10"/></svg>',
-  scarf: '<svg viewBox="0 0 48 48"><path d="M10 10c8 4 20 4 28 0v8c-8 4-20 4-28 0z"/><path d="M28 19l4 22-6-3-4 4-2-22"/></svg>',
-  sandal: '<svg viewBox="0 0 48 48"><path d="M18 6c8 0 12 6 12 16s-2 20-8 20-8-6-8-18 0-18 4-18z"/><path d="M22 14l-7 10M22 14l7 10"/></svg>',
-  gasket: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="17"/><circle cx="24" cy="24" r="11"/></svg>',
-  gasketSmall: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="12"/><circle cx="24" cy="24" r="8"/></svg>',
-  elbow: '<svg viewBox="0 0 48 48"><path d="M6 30h10a14 14 0 0 0 14-14V6"/><path d="M6 40h10a24 24 0 0 0 24-24V6"/><path d="M4 26v18M26 4h18"/></svg>',
-  brush: '<svg viewBox="0 0 48 48"><rect x="6" y="20" width="22" height="9" rx="2"/><path d="M8 29v6M12 29v6M16 29v6M20 29v6M24 29v6"/><path d="M28 23l15-5"/></svg>',
-  file: '<svg viewBox="0 0 48 48"><path d="M6 30l26-14 4 6-26 14z"/><path d="M12 29l3 4M17 26l3 4M22 23l3 4M27 20l3 4"/><path d="M36 20l7-4"/></svg>',
-  rag: '<svg viewBox="0 0 48 48"><path d="M8 14c6-4 10 2 16-2s10 2 16-2v22c-6 4-10-2-16 2s-10-2-16 2z"/></svg>',
-  twrench: '<svg viewBox="0 0 48 48"><circle cx="12" cy="12" r="6"/><path d="M16 16l22 22"/><path d="M33 33l6 6"/><rect x="27" y="25" width="6" height="10" rx="2" transform="rotate(-45 30 30)"/></svg>',
-  pipewrench: '<svg viewBox="0 0 48 48"><path d="M10 8h12v6H16v4h6v5H10z"/><path d="M16 23v19"/><path d="M13 42h6"/></svg>',
-  hammer: '<svg viewBox="0 0 48 48"><path d="M8 10h20v8H8z"/><path d="M28 12h6v4h-6"/><path d="M16 18v24"/></svg>',
-  ok: '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>',
-  warn: '<svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/></svg>',
-  info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></svg>',
-  roll: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>',
-  flip: '<svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l-5 5 5 5M16 7l5 5-5 5"/></svg>',
-  star: '<svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg>',
-  lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
-  wrench: '<svg viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 0 5 5L21 13l-8 8-3-3 8-8-1.5-1.5"/><path d="M3 21l6-6"/></svg>',
-};
-
-// ---------------- content ----------------
-const STEPS = [
-  { id: 'ppe', title: 'مهمات الوقاية', },
-  { id: 'clean', title: 'تنظيف وجه الفلانشة', },
-  { id: 'fit', title: 'الحشية والكوع', },
-  { id: 'bolts', title: 'تركيب المسامير', },
-  { id: 'torque', title: 'الربط النجمي', },
-  { id: 'test', title: 'اختبار الضغط', },
+// ---------------- station catalogue ----------------
+const STATIONS = [
+  { id: 'library', cat: 'basics', icon: 'library', accent: 'cyan', t: 'مكتبة العِدد والمعدات', d: 'لِف كل عدة بإيدك، واعرف أجزاءها واستخدامها وتعليمات السلامة.', skills: ['القياس', 'العِدد اليدوية', 'مكونات المواسير'], live: true, kind: 'library' },
+  { id: 'drawing', cat: 'drawing', icon: 'drawing', accent: 'amber', t: 'قراءة الرسومات الهندسية', d: 'رسومات أيزومترية لخطوط السفن والبترول: الرموز، الكميات، وأطوال القطع.', skills: ['الرموز', 'قائمة المواد', 'حساب الأطوال'], live: true, kind: 'sheet', station: drawingStation, scenarios: ['ship', 'oil'] },
+  { id: 'flange', cat: 'ship', icon: 'twrench', accent: 'blue', t: 'تجميع واختبار وصلة فلانشة', d: 'تنظيف وفحص، حشية، كوع، ربط بالعزم بالتتابع النجمي، واختبار ضغط مع عيوب حقيقية لازم تشخّصها.', skills: ['الفحص', 'التجميع', 'العزم', 'الاختبار'], live: true, kind: 'sheet', station: flangeStation, scenarios: ['ship', 'oil'] },
+  { id: 'measure', cat: 'basics', icon: 'caliper', accent: 'cyan', t: 'القياس والشنكرة', d: 'القياس بالورنية والمتر، وتحديد نقاط القطع ومراكز الثقوب.', skills: ['الورنية', 'الشنكرة'], live: false },
+  { id: 'bench', cat: 'basics', icon: 'file', accent: 'cyan', t: 'أعمال البرادة على المنجلة', d: 'القطع بالمنشار، البرد، التخريم، والقلوظة اليدوية.', skills: ['المنشار', 'المبرد', 'التخريم'], live: false },
+  { id: 'cut', cat: 'ship', icon: 'cutter', accent: 'blue', t: 'قطع وشطف المواسير', d: 'قطع عمودي بالقطاعة، شطف الطرف للحام، وفحص الطرف.', skills: ['القطاعة', 'الشطف'], live: false },
+  { id: 'thread', cat: 'ship', icon: 'thread', accent: 'blue', t: 'قلوظة ووصلات المواسير', d: 'عمل سن القلاووظ، الشريط، والربط بمفتاح المواسير.', skills: ['اللقمة', 'التسريب'], live: false },
+  { id: 'seawater', cat: 'ship', icon: 'ship', accent: 'blue', t: 'خطوط السفن: مياه البحر والحريق', d: 'مشروع تركيب خط من الرسم داخل غرفة الماكينات، بالحوامل والصمامات.', skills: ['مشروع', 'الحوامل'], live: false },
+  { id: 'oilgas', cat: 'oil', icon: 'oil', accent: 'red', t: 'خطوط البترول والغاز', d: 'فلانشات Class 300، حشيات حلزونية، وإجراءات العزل والأمان.', skills: ['التصنيفات', 'العزل'], live: false },
+  { id: 'hydro', cat: 'oil', icon: 'shield', accent: 'red', t: 'الاختبار الهيدروليكي للخطوط', d: 'تجهيز الاختبار، رفع الضغط على مراحل، وتسجيل النتائج.', skills: ['الاختبار', 'التقرير'], live: false },
 ];
-const CATS = { safety: ['السلامة والوقاية', 15], prep: ['تجهيز الأسطح', 10], assembly: ['صحة التجميع', 35], bolting: ['ربط المسامير', 25], testing: ['اختبار الضغط', 15] };
-const BADGES = { safety: 'سلامة أولاً', noleak: 'من غير تسريب', star: 'ربط مثالي', fast: 'إيد سريعة' };
-const MISSIONS = [
-  ['السلامة والعِدد اليدوية', 'Safety & Hand Tools'], ['القياس والشنكرة', 'Measuring & Marking'], ['أعمال البرادة على المنجلة', 'Bench Fitting'],
-  ['قطع المواسير وشطف الأطراف', 'Cutting & Bevelling'], ['قلوظة المواسير', 'Pipe Threading'], ['تجميع Spool من رسم', 'Spool Assembly'],
-  ['الاختبار الهيدروليكي لخط كامل', 'Hydrostatic Test'], ['مشروع: خط مياه تبريد بحري', 'Cooling Water Line'],
-];
+const FILTERS = [{ k: 'all', t: 'الكل' }, { k: 'basics', t: 'أساسيات' }, { k: 'drawing', t: 'الرسومات' }, { k: 'ship', t: 'السفن' }, { k: 'oil', t: 'البترول والغاز' }];
+const SCEN = { ship: { t: 'سفينة', d: 'غرفة الماكينات' }, oil: { t: 'محطة بترول', d: 'خط زيت خام' } };
 
-// ---------------- profile / home ----------------
-const profile = store.get('profile', { name: '', xp: 0, badges: [] });
-let mode = 'learn';
-function renderHome() {
+let active = null;          // running station module
+let filter = 'all';
+let launch = { station: null, mode: 'learn', level: 'easy', scenario: 'ship' };
+let amb = null;
+
+// ---------------- routing ----------------
+function go(id) {
+  if (active && active.stop) active.stop();
+  active = null;
+  stopVoice(); leakSound(0);
+  show(id);
+  const ambientOn = id === 'intro' || id === 'hub';
+  $('#ambient').classList.toggle('is-off', !ambientOn);
+  if (amb) ambientOn ? amb.start() : amb.stop();
+  if (id === 'hub') renderHub();
+}
+
+// ---------------- intro ----------------
+function introGo() {
+  unlockAudio();
+  $('#introGate').hidden = true; $('#introShow').hidden = false;
+  amb = initAmbient($('#ambient')); amb.start();
+  $('#introLegend').innerHTML = SERVICES.map(s => `<li><i style="background:#${s.c.toString(16).padStart(6, '0')}"></i><span>${s.t}</span><small dir="ltr">${s.en}</small></li>`).join('');
+  const items = $$('#introLegend li');
+  gsap.set(items, { opacity: 0, x: 20 });
+  gsap.set(['#introLogo', '#introOrg', '#introTitle span', '#introTag', '#introWelcome', '#introCta'], { opacity: 0 });
+  $('.intro__ring').style.opacity = 0;
+  sfx.whoosh();
+  const tl = amb.grow(gsap, i => { gsap.to(items[i], { opacity: 1, x: 0, duration: .45 }); sfx.tap(); });
+  const t = gsap.timeline({ delay: 3.2 });
+  t.add(() => sfx.boom())
+    .fromTo('#introLogo', { scale: .2, opacity: 0, rotate: -40 }, { scale: 1, opacity: 1, rotate: 0, duration: 1.1, ease: 'back.out(1.6)' })
+    .to('.intro__ring', { opacity: 1, duration: .4 }, '<.3')
+    .add(() => sfx.chime(), '<')
+    .fromTo('#introOrg', { y: 16, opacity: 0 }, { y: 0, opacity: 1, duration: .6 }, '-=.3')
+    .fromTo('#introTitle span', { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: .7, stagger: .18, ease: 'power3.out' }, '-=.2')
+    .fromTo('#introTag', { opacity: 0 }, { opacity: 1, duration: .6 })
+    .add(() => typeWelcome())
+    .fromTo('#introCta', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: .6, ease: 'back.out(2)' }, '+=1.2');
+  introTL = [tl, t];
+}
+let introTL = [];
+function typeWelcome() {
+  const el = $('#introWelcome'), txt = VOICE.welcome.t; el.style.opacity = 1; el.textContent = '';
+  let i = 0; const id = setInterval(() => { el.textContent = txt.slice(0, ++i); if (i >= txt.length) clearInterval(id); }, 28);
+  playLine('welcome');
+}
+function introDone() {
+  introTL.forEach(t => t && t.progress && t.progress(1));
+  if (!amb) { amb = initAmbient($('#ambient')); }
+  amb.setMode('hub');
+  sfx.whoosh();
+  go('hub');
+  gsap.from('.station-card', { y: 30, opacity: 0, duration: .5, stagger: .05, ease: 'power2.out' });
+}
+
+// ---------------- hub ----------------
+function renderHub() {
   $('#playerName').value = profile.name || '';
-  const lvl = Math.floor(profile.xp / 250) + 1, into = profile.xp % 250;
-  $('#levelNum').textContent = lvl; $('#xpNow').textContent = into; $('#xpNext').textContent = 250;
-  $('#xpFill').style.width = (into / 250 * 100) + '%';
+  const lvl = level(), into = profile.xp % 250;
+  $('#levelNum').textContent = lvl; $('#chipLevel').textContent = lvl; $('#chipName').textContent = profile.name || 'المتدرب';
+  $('#xpNow').textContent = into; $('#xpNext').textContent = 250; $('#xpFill').style.width = (into / 250 * 100) + '%';
   $('#badges').innerHTML = Object.entries(BADGES).map(([k, t]) => `<span class="badge ${profile.badges.includes(k) ? 'is-on' : ''}">${I.star}${t}</span>`).join('');
-  $('#missionPath').innerHTML = MISSIONS.map(([ar, en], i) => `<li class="mstep"><span class="mstep__no">${String(i + 2).padStart(2, '0')} · قريباً</span><b>${ar}</b><small dir="ltr">${en}</small><span class="mstep__lock">${I.lock}</span></li>`).join('');
+  const done = Object.keys(profile.best || {}).length, seen = (profile.seenTools || []).length;
+  $('#hubStats').innerHTML = [
+    [STATIONS.filter(s => s.live).length + ' / ' + STATIONS.length, 'محطات متاحة'],
+    [`${seen} / ${ITEMS.length}`, 'عدة اتعرفت عليها'],
+    [done, 'تدريب مكتمل'],
+    [profile.xp, 'نقطة خبرة'],
+  ].map(([v, t]) => `<div class="stat"><b class="mono" dir="ltr">${v}</b><span>${t}</span></div>`).join('');
+  $('#stationFilters').innerHTML = FILTERS.map(f => `<button role="tab" aria-selected="${f.k === filter}" class="chip ${f.k === filter ? 'is-on' : ''}" data-filter="${f.k}">${f.t}</button>`).join('');
+  $('#stationGrid').innerHTML = STATIONS.filter(s => filter === 'all' || s.cat === filter).map((s, i) => {
+    const best = Math.max(0, ...['easy', 'mid', 'pro'].map(l => profile.best?.[`${s.id}:${l}`] || 0));
+    return `<article class="station-card glass accent-${s.accent} ${s.live ? '' : 'is-soon'}">
+      <div class="station-card__top"><span class="station-card__no mono">${String(STATIONS.indexOf(s) + 1).padStart(2, '0')}</span>
+        <span class="tag ${s.live ? 'tag--live' : ''}">${s.live ? 'متاحة' : 'قريباً'}</span></div>
+      <div class="station-card__icon">${I[s.icon] || I.library}</div>
+      <h3>${s.t}</h3><p>${s.d}</p>
+      <div class="skills">${s.skills.map(k => `<span>${k}</span>`).join('')}</div>
+      <div class="station-card__foot">${best ? `<span class="best mono" dir="ltr">${best}/100</span>` : '<span></span>'}
+        ${s.live ? `<button class="btn btn--primary" data-open="${s.id}">${s.kind === 'library' ? 'افتح المكتبة' : 'ابدأ'}${I.back.replace('M9 6l6 6-6 6', 'M15 6l-6 6 6 6')}</button>` : `<span class="soon">${I.lock}المرحلة الجاية</span>`}</div>
+    </article>`;
+  }).join('');
 }
-$('#playerName').addEventListener('input', e => { profile.name = e.target.value.trim(); store.set('profile', profile); });
-document.querySelectorAll('.mode').forEach(b => b.addEventListener('click', () => {
-  mode = b.dataset.mode; sfx.tap();
-  document.querySelectorAll('.mode').forEach(x => { x.classList.toggle('is-on', x === b); x.setAttribute('aria-checked', x === b); });
-}));
-
-function show(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('is-active', s.id === id));
+function openStation(id) {
+  const s = STATIONS.find(x => x.id === id); if (!s || !s.live) return;
+  sfx.pick();
+  if (s.kind === 'library') { go('library'); active = libraryStation; libraryStation.open(); return; }
+  launch.station = s;
+  $('#launchKicker').textContent = 'إعداد التدريب';
+  $('#launchTitle').textContent = s.t; $('#launchDesc').textContent = s.d;
+  $('#scenarioGroup').hidden = !s.scenarios;
+  if (s.scenarios) $('#scenarioSeg').innerHTML = s.scenarios.map(k => `<button class="seg__b ${launch.scenario === k ? 'is-on' : ''}" data-scen="${k}"><b>${SCEN[k].t}</b><small>${SCEN[k].d}</small></button>`).join('');
+  $('#modeSeg').innerHTML = [['learn', 'تعلّم', 'شرح صوتي وإرشاد'], ['test', 'اختبار', 'من غير مساعدة · بدرجة']].map(([k, t, d]) => `<button class="seg__b ${launch.mode === k ? 'is-on' : ''}" data-mode="${k}"><b>${t}</b><small>${d}</small></button>`).join('');
+  $('#levelSeg').innerHTML = Object.entries(LEVELS).map(([k, v]) => `<button class="seg__b ${launch.level === k ? 'is-on' : ''}" data-level="${k}"><b>${v.t}</b><small>${v.d}</small></button>`).join('');
+  const sh = $('#launchSheet'); sh.hidden = false;
+  gsap.fromTo('.sheet__card', { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: .4, ease: 'power3.out' });
+}
+async function startLaunch() {
+  const s = launch.station; $('#launchSheet').hidden = true;
+  const opts = { mode: launch.mode, level: launch.level, scenario: launch.scenario };
+  if (s.id === 'drawing') { go('drawing'); active = drawingStation; drawingStation.start(opts); return; }
+  go('station'); active = s.station;
+  const boot = $('#boot'); boot.hidden = false; boot.classList.remove('is-gone');
+  await s.station.start(opts);
+  setTimeout(() => { boot.classList.add('is-gone'); setTimeout(() => (boot.hidden = true), 500); }, 200);
 }
 
-// global buttons
+// ---------------- global events ----------------
+$('#playerName').addEventListener('input', e => { profile.name = e.target.value.trim(); saveProfile(); $('#chipName').textContent = profile.name || 'المتدرب'; });
 document.addEventListener('click', e => {
+  const seg = e.target.closest('[data-scen],[data-mode],[data-level]');
+  if (seg && seg.closest('#launchSheet')) {
+    sfx.tap();
+    if (seg.dataset.scen) launch.scenario = seg.dataset.scen;
+    if (seg.dataset.mode) launch.mode = seg.dataset.mode;
+    if (seg.dataset.level) launch.level = seg.dataset.level;
+    seg.parentElement.querySelectorAll('.seg__b').forEach(b => b.classList.toggle('is-on', b === seg));
+    return;
+  }
+  const f = e.target.closest('[data-filter]'); if (f) { filter = f.dataset.filter; sfx.tap(); renderHub(); return; }
+  const o = e.target.closest('[data-open]'); if (o) { openStation(o.dataset.open); return; }
   const b = e.target.closest('[data-action]'); if (!b) return;
   unlockAudio();
   const a = b.dataset.action;
-  if (a === 'sound') { audio.on = !audio.on; document.querySelectorAll('[data-action="sound"]').forEach(x => x.setAttribute('aria-pressed', audio.on)); if (!audio.on) { stopVoice(); leakSound(0); } }
-  if (a === 'fullscreen') { const el = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen?.())?.catch?.(() => {}); }
-  if (a === 'start') startExercise();
-  if (a === 'home') { leaveWorkshop(); }
-  if (a === 'replay') narrate();
-  if (a === 'again') startExercise();
-  if (a === 'gohome') { show('home'); renderHome(); }
+  if (a === 'sound') { audio.on = !audio.on; $$('[data-action="sound"]').forEach(x => x.setAttribute('aria-pressed', audio.on)); if (!audio.on) { stopVoice(); leakSound(0); } }
+  if (a === 'fullscreen') { const el = document.documentElement; try { (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen?.())?.catch?.(() => {}); } catch { /* not supported */ } }
   if (a === 'exit') exitApp();
+  if (a === 'intro-go') introGo();
+  if (a === 'intro-done') introDone();
+  if (a === 'hub') go('hub');
+  if (a === 'replay') replay();
+  if (a === 'profile') { $('#profilePanel').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#playerName').focus(); }
+  if (a === 'sheet-close') $('#launchSheet').hidden = true;
+  if (a === 'launch') startLaunch();
+  if (a === 'again') { const s = launch.station; if (s) startLaunch(); }
 });
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#launchSheet').hidden) $('#launchSheet').hidden = true; });
 
 function exitApp() {
   try { document.fullscreenElement && document.exitFullscreen(); } catch { /* ignore */ }
   stopVoice(); window.close();
-  setTimeout(() => { const h = $('#exitHint'); h.hidden = false; gsap.fromTo(h, { opacity: 0 }, { opacity: 1, duration: .3 }); setTimeout(() => (h.hidden = true), 5000); }, 400);
-}
-
-// ---------------- world ----------------
-let W = null, raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
-let loose = [];            // draggable objects in the scene
-let labels = [];
-const dropTex = dropletSprite(), ringAmber = ringSprite('#FFC23D'), ringMint = ringSprite('#2EE6A6'), ringBlue = ringSprite('#8DB8FF');
-let leak = null;
-let S = null;              // exercise state
-
-async function ensureWorld() {
-  if (W) return W;
-  const logo = new Image(); logo.src = 'assets/logo.png';
-  await Promise.all([logo.decode().catch(() => {}), document.fonts.load('700 40px "Readex Pro"').catch(() => {}), document.fonts.load('600 40px "Readex Pro"').catch(() => {})]);
-  W = await createWorld($('#stage'), logo); W.logo = logo;
-  W.dirtOriginal = (() => { const c = document.createElement('canvas'); const src = W.dirtTex.userData.canvas; c.width = src.width; c.height = src.height; c.getContext('2d').drawImage(src, 0, 0); return c; })();
-  // leak particles
-  const N = 700, geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.012, map: dropTex, transparent: true, depthWrite: false, opacity: 0.9 }));
-  pts.frustumCulled = false; W.scene.add(pts);
-  leak = { pts, N, vel: new Float32Array(N * 3), life: new Float32Array(N), level: 0, i: 0 };
-  bindStagePointer();
-  let last = performance.now();
-  W.renderer.setAnimationLoop(() => {
-    const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
-    W.controls.update();
-    tickLeak(dt); tickTest(dt); tickDust(dt);
-    if (S && S.pulse) S.pulse.forEach(m => { m.material.opacity = 0.55 + 0.45 * Math.sin(now / 220); });
-    W.renderer.render(W.scene, W.camera);
-    updateLabels();
-  });
-  return W;
-}
-
-let dust = null;
-function emitDust(p) {
-  if (!dust) {
-    const N = 300, geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3).fill(-10), 3));
-    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.004, color: 0x8a4b22, transparent: true, opacity: 0.9, depthWrite: false }));
-    pts.frustumCulled = false; W.scene.add(pts); dust = { pts, N, vel: new Float32Array(N * 3), life: new Float32Array(N), i: 0 };
-  }
-  const a = dust.pts.geometry.attributes.position.array;
-  for (let k = 0; k < 5; k++) {
-    const i = dust.i = (dust.i + 1) % dust.N;
-    a[i * 3] = p.x + 0.004; a[i * 3 + 1] = p.y; a[i * 3 + 2] = p.z;
-    dust.vel[i * 3] = 0.2 + Math.random() * 0.4; dust.vel[i * 3 + 1] = (Math.random() - .2) * 0.5; dust.vel[i * 3 + 2] = (Math.random() - .5) * 0.6; dust.life[i] = 0.8;
-  }
-}
-function tickDust(dt) {
-  if (!dust) return; const a = dust.pts.geometry.attributes.position.array;
-  for (let i = 0; i < dust.N; i++) { if (dust.life[i] <= 0) { a[i * 3 + 1] = -10; continue; } dust.life[i] -= dt; dust.vel[i * 3 + 1] -= 4 * dt; a[i * 3] += dust.vel[i * 3] * dt; a[i * 3 + 1] += dust.vel[i * 3 + 1] * dt; a[i * 3 + 2] += dust.vel[i * 3 + 2] * dt; }
-  dust.pts.geometry.attributes.position.needsUpdate = true;
-}
-function tickLeak(dt) {
-  if (!leak) return;
-  const p = leak.pts.geometry.attributes.position.array, v = leak.vel;
-  const spawn = Math.floor(leak.level * 26);
-  for (let k = 0; k < spawn; k++) {
-    const i = leak.i = (leak.i + 1) % leak.N, a = Math.random() * Math.PI * 2, r = 0.081;
-    p[i * 3] = 0.0015 + (Math.random() - .5) * 0.004; p[i * 3 + 1] = DIM.pipeY + Math.cos(a) * r; p[i * 3 + 2] = Math.sin(a) * r;
-    const sp = 0.6 + Math.random() * 1.4 * leak.level;
-    v[i * 3] = (Math.random() - .5) * 0.5; v[i * 3 + 1] = Math.cos(a) * sp; v[i * 3 + 2] = Math.sin(a) * sp;
-    leak.life[i] = 1.4;
-  }
-  for (let i = 0; i < leak.N; i++) {
-    if (leak.life[i] <= 0) { p[i * 3 + 1] = -10; continue; }
-    leak.life[i] -= dt; v[i * 3 + 1] -= 9.8 * dt;
-    p[i * 3] += v[i * 3] * dt; p[i * 3 + 1] += v[i * 3 + 1] * dt; p[i * 3 + 2] += v[i * 3 + 2] * dt;
-    if (p[i * 3 + 1] < 0.004) { p[i * 3 + 1] = 0.004; v[i * 3] *= 0.3; v[i * 3 + 1] = 0; v[i * 3 + 2] *= 0.3; }
-  }
-  leak.pts.geometry.attributes.position.needsUpdate = true;
-}
-
-// ---------------- labels ----------------
-function addLabel(text, pos) {
-  const el = document.createElement('div'); el.className = 'label3d'; el.textContent = text;
-  $('#workshop').appendChild(el); const L = { el, pos }; labels.push(L); return L;
-}
-function clearLabels() { labels.forEach(l => l.el.remove()); labels = []; }
-const tmpV = new THREE.Vector3();
-function updateLabels() {
-  if (!labels.length) return;
-  const r = W.renderer.domElement.getBoundingClientRect();
-  labels.forEach(l => {
-    const p = typeof l.pos === 'function' ? l.pos() : l.pos;
-    tmpV.copy(p).project(W.camera);
-    const vis = tmpV.z < 1;
-    l.el.style.display = vis ? '' : 'none';
-    l.el.style.left = ((tmpV.x + 1) / 2 * r.width) + 'px';
-    l.el.style.top = ((1 - tmpV.y) / 2 * r.height) + 'px';
-  });
-}
-
-// ---------------- camera ----------------
-const CAMS = {
-  iso: [[0.95, 1.45, 1.25], [0.02, DIM.pipeY, 0]],
-  front: [[0.95, 1.02, 0.08], [0, DIM.pipeY, 0]],
-  close: [[0.42, 1.12, 0.46], [0.02, DIM.pipeY, 0]],
-  clean: [[0.5, 1.02, 0.18], [0, DIM.pipeY, 0]],
-  fit: [[0.9, 1.35, 1.05], [0.12, DIM.pipeY + 0.06, 0]],
-  bolts: [[0.62, 1.12, 0.5], [0.02, DIM.pipeY, 0]],
-  test: [[1.25, 1.45, 1.45], [0.05, DIM.pipeY, 0]],
-};
-function camTo(name, dur = 1.2) {
-  const [p, t] = CAMS[name], c = W.camera, ctl = W.controls;
-  const PK = { clean: .8, front: 1, bolts: 1, close: .9, fit: 1.2, iso: 1.3, test: 1.3 };
-  const portrait = innerWidth / innerHeight < 0.8, k = portrait ? PK[name] : 1;
-  const P = new THREE.Vector3(...p).sub(new THREE.Vector3(...t)).multiplyScalar(k).add(new THREE.Vector3(...t));
-  gsap.to(c.position, { x: P.x, y: P.y, z: P.z, duration: dur, ease: 'power2.inOut' });
-  gsap.to(ctl.target, { x: t[0], y: t[1], z: t[2], duration: dur, ease: 'power2.inOut' });
-}
-document.querySelectorAll('[data-cam]').forEach(b => b.addEventListener('click', () => { sfx.tap(); camTo(b.dataset.cam); }));
-
-// ---------------- UI helpers ----------------
-let toastTimer = 0;
-function toast(msg, kind = 'err', ms = 3200) {
-  const t = $('#toast'); t.className = 'toast' + (kind === 'ok' ? ' is-ok' : kind === 'info' ? ' is-info' : '');
-  t.innerHTML = (kind === 'ok' ? I.ok : kind === 'info' ? I.info : I.warn) + `<span>${msg}</span>`; t.hidden = false;
-  gsap.fromTo(t, { y: -16, opacity: 0 }, { y: 0, opacity: 1, duration: .3 });
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => gsap.to(t, { opacity: 0, duration: .3, onComplete: () => (t.hidden = true) }), ms);
-}
-// recorded voice clips (Shakir) with the device's Arabic voice as fallback
-let clip = null;
-function stopVoice() { stopSpeaking(); if (clip) { clip.pause(); clip = null; } $('#say').classList.remove('is-speaking'); }
-function playLine(id) {
-  stopVoice();
-  if (!audio.on || !VOICE[id]) return;
-  const L = VOICE[id], a = new Audio(`assets/voice/${id}.mp3`);
-  const on = () => $('#say').classList.add('is-speaking'), off = () => $('#say').classList.remove('is-speaking');
-  let fell = false;
-  const fallback = () => { if (fell || clip !== a) return; fell = true; clip = null; speak(L.s || L.t, on, off); };
-  clip = a; a.onplay = on; a.onended = off; a.onerror = fallback;
-  a.play().catch(fallback);
-}
-function say(id) { $('#sayText').textContent = VOICE[id].t; playLine(id); }
-function fb(id, kind = 'err', ms = 3600) { toast(VOICE[id].t, kind, ms); playLine(id); }
-function narrate() { say(`${STEPS[S.step].id}_${S.mode}`); }
-function dock(items, label = '') {
-  const d = $('#dock'); d.innerHTML = items ? `<div class="dock__row">${items}</div>${label ? `<span class="dock__label">${label}</span>` : ''}` : '';
-  requestAnimationFrame(() => document.documentElement.style.setProperty('--dock-h', d.offsetHeight ? d.offsetHeight + 'px' : '0px'));
-  if (items) gsap.fromTo(d, { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: .35, ease: 'power2.out' });
-}
-function renderSteps() {
-  $('#steps').innerHTML = STEPS.map((s, i) => `<li class="step ${i < S.step ? 'is-done' : i === S.step ? 'is-now' : ''}"><span class="step__dot">${i < S.step ? '✓' : i + 1}</span><span class="step__label">${s.title}</span></li>`).join('');
-  $('#stepTitle').innerHTML = `<span class="stepno">الخطوة ${S.step + 1} من ${STEPS.length}: </span>${STEPS[S.step].title}`;
-}
-function scoreNow() { return Object.entries(CATS).reduce((a, [k, [, max]]) => a + Math.max(0, max - S.ded[k]), 0); }
-function penalize(cat, pts, text) {
-  S.ded[cat] += pts; S.mistakes.push({ t: elapsed(), text, pts });
-  const el = $('#score'); el.textContent = scoreNow();
-  gsap.fromTo('.pill--score', { scale: 1.25 }, { scale: 1, duration: .4 });
-}
-const elapsed = () => Math.floor((performance.now() - S.t0) / 1000);
-const fmt = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-
-// ---------------- exercise lifecycle ----------------
-async function startExercise() {
-  unlockAudio();
-  show('workshop');
-  const boot = $('#boot'); boot.classList.remove('is-gone');
-  await ensureWorld();
-  resetScene();
-  S = { mode, step: 0, t0: performance.now(), ded: { safety: 0, prep: 0, assembly: 0, bolting: 0, testing: 0 }, mistakes: [], ppe: new Set(), gasketOn: false, elbow: null, elbowOn: false, roll: 1, flipped: false, studs: [], tight: [], torqueSeq: [], pulse: [], markers: [], testFails: 0, wrongHits: 0, orientErr: 0 };
-  $('#modePill').textContent = mode === 'learn' ? 'تعلّم' : 'اختبار';
-  $('#score').textContent = scoreNow();
-  clearInterval(S.timer); S.timer = setInterval(() => { $('#timer').textContent = fmt(elapsed()); }, 500);
-  W.onResize();
-  setTimeout(() => boot.classList.add('is-gone'), 150);
-  W.camera.position.set(2.2, 2.2, 2.6); camTo('iso', 2);
-  enterStep(0);
-}
-function leaveWorkshop() {
-  stopVoice(); leakSound(0); if (S) clearInterval(S.timer); S = null;
-  show('home'); renderHome();
-}
-function resetScene() {
-  loose.forEach(o => W.scene.remove(o)); loose = [];
-  W.scene.children.filter(o => o.userData.dynamic).forEach(o => W.scene.remove(o));
-  clearLabels(); leak.level = 0; leakSound(0);
-  const c = W.dirtTex.userData.canvas.getContext('2d');
-  c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, 256, 256); c.drawImage(W.dirtOriginal, 0, 0);
-  W.dirtTex.needsUpdate = true; W.dirt.material.opacity = 1; W.dirt.visible = true;
-  $('#gauge').hidden = true; $('#toast').hidden = true; $('#worker').hidden = true; $('#ppePill').hidden = true; if (WK) WK.stop();
-}
-function nextStep() { sfx.ok(); enterStep(S.step + 1); }
-function enterStep(i) {
-  if (S.toolObj && !['clean', 'torque'].includes(STEPS[i].id)) dropTool();
-  S.step = i; renderSteps(); clearMarkers(); clearLabels();
-  const id = STEPS[i].id;
-  narrate();
-  ({ ppe: stepPPE, clean: stepClean, fit: stepFit, bolts: stepBolts, torque: stepTorque, test: stepTest })[id]();
-}
-
-// ---------- step 1: PPE ----------
-const PPE = [
-  { k: 'helmet', t: 'خوذة', ok: true }, { k: 'goggles', t: 'نضارة واقية', ok: true }, { k: 'gloves', t: 'جوانتي عمل', ok: true },
-  { k: 'watch', t: 'ساعة وخاتم', ok: false, why: 'الساعة والخاتم ممنوعين في الورشة: ممكن يتشبكوا في العِدة أو الماكينة.' },
-  { k: 'boots', t: 'حذاء أمان', ok: true },
-  { k: 'scarf', t: 'كوفية طويلة', ok: false, why: 'اللبس الواسع والكوفية خطر: ممكن تتلف في أي جزء دوّار.' },
-  { k: 'sandal', t: 'شبشب', ok: false, why: 'الشبشب ممنوع. لازم حذاء أمان بمقدمة حديد يحمي صوابعك.' },
-];
-const PPE_OK = ['helmet', 'goggles', 'gloves', 'boots'];
-let WK = null;
-function showWorker() {
-  const w = $('#worker');
-  if (!WK) {
-    w.innerHTML = `<b class="worker__title">المتدرب</b><div class="worker__stage" id="workerStage"></div><ul class="worker__list">${PPE_OK.map(k => `<li data-slot="${k}">${I[k]}<span>${PPE.find(p => p.k === k).t}</span></li>`).join('')}</ul>`;
-    w.hidden = false;
-    WK = createWorker($('#workerStage'), W.logo);
-  }
-  w.hidden = false; WK.reset(); WK.start();
-  w.querySelectorAll('[data-slot]').forEach(li => li.classList.remove('is-on'));
-  gsap.fromTo(w, { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: .5, ease: 'power2.out' });
-}
-function dress(k, ok) {
-  if (!WK) return;
-  if (ok) {
-    WK.equip(k);
-    const li = document.querySelector(`[data-slot="${k}"]`); if (li) { li.classList.add('is-on'); gsap.fromTo(li, { scale: .8 }, { scale: 1, duration: .4, ease: 'back.out(3)' }); }
-  } else WK.wrong(k);
-}
-function finishWorker() {
-  const w = $('#worker');
-  gsap.to(w, { scale: .6, opacity: 0, duration: .5, delay: 1.1, ease: 'power2.in', transformOrigin: 'top left', onComplete: () => { w.hidden = true; gsap.set(w, { scale: 1 }); if (WK) WK.stop(); } });
-  const pill = $('#ppePill'); pill.innerHTML = PPE_OK.map(k => I[k]).join(''); pill.hidden = false;
-  gsap.fromTo(pill, { scale: 0 }, { scale: 1, duration: .5, delay: 1.4, ease: 'back.out(3)' });
-}
-function stepPPE() {
-  camTo('iso');
-  showWorker();
-  dock(PPE.map(p => `<button class="tile" data-ppe="${p.k}">${I[p.k]}<span>${p.t}</span></button>`).join(''), 'اختار اللي هتلبسه قبل ما تدخل الورشة (4 حاجات)');
-  $('#dock').onclick = e => {
-    const b = e.target.closest('[data-ppe]'); if (!b || b.classList.contains('is-picked')) return;
-    const p = PPE.find(x => x.k === b.dataset.ppe);
-    if (p.ok) { b.classList.add('is-picked'); sfx.wear(); S.ppe.add(p.k); dress(p.k, true); gsap.fromTo(b, { scale: .9 }, { scale: 1, duration: .3, ease: 'back.out(3)' });
-      if (S.ppe.size === 4) { fb('ppe_ok', 'ok', 2600); $('#dock').onclick = null; finishWorker(); setTimeout(nextStep, 2200); } }
-    else { b.classList.add('is-wrong', 'is-used'); sfx.error(); dress(p.k, false); fb('ppe_' + p.k); penalize('safety', 5, 'اختيار غير آمن: ' + p.t); }
-  };
-}
-
-// ---------- step 2: clean ----------
-// ---------- hand tools (picked from the tool box, used in 3D) ----------
-const TOOLSETS = {
-  clean: [{ k: 'brush', t: 'فرشاة سلك', ok: true }, { k: 'file', t: 'مبرد', ok: false, v: 'tool_file_bad' }, { k: 'rag', t: 'قطعة قماش', ok: false, v: 'tool_rag_bad' }],
-  torque: [{ k: 'twrench', t: 'مفتاح عزم', s: '24 mm', ok: true }, { k: 'pipewrench', t: 'مفتاح مواسير', ok: false, v: 'tool_pipewrench_bad' }, { k: 'hammer', t: 'شاكوش', ok: false, v: 'tool_hammer_bad' }],
-};
-const TOOL_REST = { brush: [new THREE.Vector3(0.2, DIM.pipeY + 0.04, 0.2), -0.6], twrench: [new THREE.Vector3(0.16, DIM.pipeY - 0.36, 0.34), 0.3] };
-function toolTiles(set) { return TOOLSETS[set].map(t => `<button class="tile" data-tool="${t.k}">${I[t.k]}<span>${t.t}</span>${t.s ? `<small>${t.s}</small>` : ''}</button>`).join(''); }
-function bindToolTiles(set, cat) {
-  document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
-    if (S.tool || b.classList.contains('is-used')) return;
-    const t = TOOLSETS[set].find(x => x.k === b.dataset.tool);
-    if (!t.ok) { b.classList.add('is-wrong', 'is-used'); sfx.error(); fb(t.v); penalize(cat, 3, 'اختيار عدة غير مناسبة: ' + t.t); return; }
-    b.classList.add('is-picked'); document.querySelectorAll('[data-tool]').forEach(x => x.classList.remove('is-hint'));
-    pickTool(t.k);
-  }));
-}
-function pickTool(k) {
-  S.tool = k; sfx.pick();
-  const obj = k === 'brush' ? wireBrush() : torqueWrench();
-  obj.userData.dynamic = true; S.toolObj = obj; W.scene.add(obj);
-  const [rest, ry] = TOOL_REST[k];
-  obj.rotation.set(0, ry, 0);
-  obj.position.copy(rest).add(new THREE.Vector3(0.25, -0.35, 0.3));
-  gsap.to(obj.position, { x: rest.x, y: rest.y, z: rest.z, duration: .7, ease: 'back.out(1.4)' });
-}
-function toolHome(dur = .45) {
-  const o = S.toolObj; if (!o) return;
-  const [rest, ry] = TOOL_REST[S.tool];
-  gsap.to(o.position, { x: rest.x, y: rest.y, z: rest.z, duration: dur, ease: 'power2.out' });
-  gsap.to(o.rotation, { x: 0, y: ry, z: 0, duration: dur });
-}
-function dropTool() {
-  const o = S.toolObj; if (!o) return;
-  S.toolObj = null; S.tool = null;
-  gsap.to(o.position, { y: o.position.y - 0.5, x: o.position.x + 0.3, duration: .6, ease: 'power2.in', onComplete: () => W.scene.remove(o) });
-}
-function hintTool() { document.querySelectorAll('[data-tool]').forEach(b => { const t = Object.values(TOOLSETS).flat().find(x => x.k === b.dataset.tool); if (t.ok) b.classList.add('is-hint'); }); }
-
-function stepClean() {
-  camTo('clean');
-  W.dirt.visible = true;
-  S.cleanBase = alphaSum(); S.cleanLast = 0; S.tool = null;
-  dock(toolTiles('clean') + `<div class="progress"><span>${I.brush}</span><div class="meter"><i id="cleanBar" style="width:0%"></i></div><b class="mono" id="cleanPct">0%</b></div>`, 'التقط العُدّة المناسبة، وبعدين امسح بيها وش الفلانشة');
-  bindToolTiles('clean', 'prep');
-  addLabel('وجه الفلانشة · Raised Face', new THREE.Vector3(0.01, DIM.pipeY + 0.1, 0));
-  $('#stage').classList.add('is-brush');
-}
-// only the raised-face ring is visible/brushable, so progress is measured on that ring only
-let ringIdx = null;
-function alphaSum() {
-  if (!ringIdx) {
-    ringIdx = []; const rIn = 128 * (DIM.pipeID / 2) / (DIM.rfD / 2) + 3, rOut = 125;
-    for (let y = 0; y < 256; y += 2) for (let x = 0; x < 256; x += 2) { const r = Math.hypot(x - 128, y - 128); if (r > rIn && r < rOut) ringIdx.push((y * 256 + x) * 4 + 3); }
-  }
-  const d = W.dirtTex.userData.canvas.getContext('2d').getImageData(0, 0, 256, 256).data; let s = 0;
-  for (const i of ringIdx) s += d[i]; return s;
-}
-function scrub(c, x, y) {
-  const g = c.createRadialGradient(x, y, 0, x, y, 30); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.55, 'rgba(0,0,0,.85)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = g; c.beginPath(); c.arc(x, y, 30, 0, 7); c.fill();
-}
-function brushAt(uv) {
-  if (S.cleanDone || !$('#cleanBar')) return;
-  const c = W.dirtTex.userData.canvas.getContext('2d');
-  c.globalCompositeOperation = 'destination-out';
-  const x = uv.x * 256, y = (1 - uv.y) * 256, L = S.lastUV;
-  if (L && Math.hypot(x - L[0], y - L[1]) < 90) { const n = Math.ceil(Math.hypot(x - L[0], y - L[1]) / 8); for (let k = 1; k <= n; k++) scrub(c, L[0] + (x - L[0]) * k / n, L[1] + (y - L[1]) * k / n); }
-  else scrub(c, x, y);
-  S.lastUV = [x, y];
-  c.globalCompositeOperation = 'source-over';
-  if (S.brushHit) { emitDust(S.brushHit); const o = S.toolObj; if (o) { o.position.set(S.brushHit.x + 0.002, S.brushHit.y, S.brushHit.z); o.rotation.set((Math.random() - .5) * 0.15, -0.35, (Math.random() - .5) * 0.2); } }
-  W.dirtTex.needsUpdate = true;
-  if (Math.random() < 0.35) sfx.brush();
-  const now = performance.now();
-  if (now - S.cleanLast > 120) {
-    S.cleanLast = now;
-    const pct = Math.min(1, 1 - alphaSum() / S.cleanBase);
-    const shown = Math.min(100, Math.round(pct / 0.72 * 100));
-    $('#cleanBar').style.width = shown + '%'; $('#cleanPct').textContent = shown + '%';
-    if (pct >= 0.72 && !S.cleanDone) {
-      S.cleanDone = true; $('#stage').classList.remove('is-brush'); S.brushing = false; setTimeout(dropTool, 300);
-      gsap.to(W.dirt.material, { opacity: 0, duration: .6, onComplete: () => (W.dirt.visible = false) });
-      fb('clean_ok', 'ok', 2200); setTimeout(nextStep, 900);
-    }
-  }
-}
-
-// ---------- step 3: gasket + elbow ----------
-function stepFit() {
-  S.cleanDone = true; $('#stage').classList.remove('is-brush');
-  camTo('fit');
-  renderFitDock();
-  addLabel('ضع هنا · F-01', () => tmpV.set(0.03, DIM.pipeY + 0.13, 0));
-  if (S.mode === 'learn') showGhost();
-}
-function renderFitDock() {
-  const hasElbowLoose = S.elbow && !S.elbowOn;
-  const tiles = [
-    { k: 'gasket', t: 'حشية', s: 'DN100', used: S.gasketOn || loose.some(o => o.userData.kind === 'gasket') },
-    { k: 'gasketSmall', t: 'حشية', s: 'DN80', used: S.usedSmall },
-    { k: 'elbow', t: 'كوع 90° بفلانشة', s: 'DN100 LR', used: !!S.elbow },
-  ];
-  let html = tiles.map(t => `<button class="tile ${t.used ? 'is-used' : ''}" data-part="${t.k}">${I[t.k]}<span>${t.t}</span><small>${t.s}</small></button>`).join('');
-  if (hasElbowLoose) {
-    html += `<div class="actions">
-      <button class="btn btn--amber" data-elbow="roll">${I.roll}لف الكوع 90°</button>
-      <button class="btn" data-elbow="flip">${I.flip}اقلب الوجه</button>
-      <span class="pill" id="orient">${orientText()}</span></div>`;
-  }
-  dock(html, hasElbowLoose ? 'اسحب الكوع لحد الفلانشة بعد ما تظبط اتجاهه' : 'اسحب القطعة من هنا للفلانشة، أو اضغط عليها مرة');
-  document.querySelectorAll('[data-part]').forEach(b => b.addEventListener('pointerdown', trayDown));
-  document.querySelectorAll('[data-elbow]').forEach(b => b.addEventListener('click', () => b.dataset.elbow === 'roll' ? rollElbow() : flipElbow()));
-}
-const ORIENT = ['لفوق', 'لقدّام', 'لتحت', 'لورا'];
-function orientText() { return `اتجاه الفتحة: <b>${ORIENT[S.roll]}</b>${S.flipped ? ' · الوش مقلوب' : ''}${S.roll === 0 && !S.flipped ? ' ✓' : ''}`; }
-function applyElbowRotation(animate = true) {
-  const e = S.elbow; const rx = S.rx, ry = S.flipped ? Math.PI : 0;
-  e.rotation.order = 'YXZ';
-  if (animate) gsap.to(e.rotation, { x: rx, y: ry, duration: .45, ease: 'power2.out' }); else e.rotation.set(rx, ry, 0);
-  const o = $('#orient'); if (o) o.innerHTML = orientText();
-}
-function rollElbow() { S.roll = (S.roll + 1) % 4; S.rx += Math.PI / 2; sfx.slide(); applyElbowRotation(); }
-function flipElbow() { S.flipped = !S.flipped; sfx.slide(); applyElbowRotation(); }
-
-function showGhost() {
-  if (S.ghost) return;
-  const g = elbowAssembly();
-  g.traverse(o => { if (o.isMesh) { o.material = MAT.ghost; o.castShadow = false; } });
-  g.position.set(DIM.gasketT, DIM.pipeY, 0); g.userData.dynamic = true; S.ghost = g; W.scene.add(g);
-}
-function spawnPart(kind) {
-  let obj;
-  if (kind === 'elbow') { obj = elbowAssembly(); S.elbow = obj; S.roll = 1; S.rx = Math.PI / 2; S.flipped = false; applyElbowRotation(false); }
-  else { obj = gasket(kind === 'gasketSmall'); if (kind === 'gasketSmall') S.usedSmall = true; }
-  obj.userData.kind = kind; obj.userData.dynamic = true;
-  W.scene.add(obj); loose.push(obj); sfx.pick();
-  return obj;
-}
-const STAGING = { gasket: new THREE.Vector3(0.32, DIM.pipeY + 0.02, 0.22), gasketSmall: new THREE.Vector3(0.32, DIM.pipeY + 0.02, 0.22), elbow: new THREE.Vector3(0.36, DIM.pipeY + 0.04, 0.3) };
-
-// ---------- pointer: tray drag ----------
-let drag = null;
-const plane = new THREE.Plane(), hit = new THREE.Vector3();
-function setRay(x, y) { const r = W.renderer.domElement.getBoundingClientRect(); ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); raycaster.setFromCamera(ndc, W.camera); }
-function planeThrough(p) { const n = new THREE.Vector3(); W.camera.getWorldDirection(n); plane.setFromNormalAndCoplanarPoint(n.negate(), p); }
-function trayDown(e) {
-  const b = e.currentTarget; if (b.classList.contains('is-used')) return;
-  e.preventDefault(); unlockAudio();
-  const kind = b.dataset.part;
-  if (kind === 'gasket' && S.elbowOn) { fb('elbow_busy'); sfx.error(); return; }
-  const obj = spawnPart(kind);
-  obj.position.copy(STAGING[kind]);
-  const sx = e.clientX, sy = e.clientY;
-  drag = { obj, fromTray: true, moved: false, sx, sy, off: new THREE.Vector3() };
-  planeThrough(new THREE.Vector3(0.1, DIM.pipeY, 0));
-  W.controls.enabled = false;
-  renderFitDock();
-}
-addEventListener('pointermove', e => {
-  if (!drag) return;
-  if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 8) drag.moved = true;
-  if (!drag.moved) return;
-  setRay(e.clientX, e.clientY);
-  if (raycaster.ray.intersectPlane(plane, hit)) { drag.obj.position.copy(hit).sub(drag.off); drag.obj.position.y = Math.max(0.15, drag.obj.position.y); }
-  nearHint(drag.obj);
-});
-addEventListener('pointerup', endDrag); addEventListener('pointercancel', endDrag);
-function endDrag() {
-  if (!drag) return;
-  const d = drag; drag = null; W.controls.enabled = true;
-  if (!d.moved && d.fromTray) { // tap: lift into view near the joint
-    gsap.fromTo(d.obj.position, { y: d.obj.position.y + 0.25 }, { y: d.obj.position.y, duration: .5, ease: 'bounce.out' });
-    return;
-  }
-  trySnap(d.obj);
-}
-function nearHint(obj) {
-  if (!S.ghost) return;
-  const dist = obj.position.distanceTo(S.ghost.position);
-  S.ghost.traverse(o => { if (o.isMesh) o.material.opacity = dist < 0.15 ? 0.32 : 0.18; });
-}
-
-// ---------- stage pointer (brush, grab, tap markers) ----------
-function bindStagePointer() {
-  const stage = $('#stage');
-  stage.addEventListener('pointerdown', e => {
-    if (!S) return;
-    unlockAudio();
-    setRay(e.clientX, e.clientY);
-    const id = STEPS[S.step].id;
-    if (id === 'clean' && !S.cleanDone) {
-      const h = raycaster.intersectObject(W.dirt, false)[0];
-      if (h) {
-        if (S.tool !== 'brush') { fb('tool_brush_pick', 'info'); hintTool(); W.controls.enabled = false; S.noOrbit = true; return; }
-        W.controls.enabled = false; S.brushing = true; S.brushHit = h.point; brushAt(h.uv);
-      }
-      return;
-    }
-    if (id === 'fit') {
-      const hits = raycaster.intersectObjects(loose, true);
-      if (hits.length) {
-        let o = hits[0].object; while (o.parent && !loose.includes(o)) o = o.parent;
-        // drag on a camera-facing plane through the joint, keeping the grab offset on screen
-        planeThrough(new THREE.Vector3(0.1, DIM.pipeY, 0));
-        raycaster.ray.intersectPlane(plane, hit); const grab = hit.clone();
-        const sp = o.position.clone().project(W.camera); raycaster.setFromCamera(new THREE.Vector2(sp.x, sp.y), W.camera);
-        const base = new THREE.Vector3(); raycaster.ray.intersectPlane(plane, base);
-        drag = { obj: o, fromTray: false, moved: true, off: grab.sub(base) };
-        gsap.to(o.position, { x: base.x, y: base.y, z: base.z, duration: .15 });
-        W.controls.enabled = false; sfx.pick();
-      }
-      return;
-    }
-    if (id === 'bolts' || id === 'torque') {
-      const h = raycaster.intersectObjects(S.markers.map(m => m.userData.hitbox), false)[0];
-      if (h) { W.controls.enabled = false; setTimeout(() => (W.controls.enabled = true), 0); (id === 'bolts' ? insertStud : tightenNut)(h.object.userData.index); }
-    }
-  }, { capture: true });
-  stage.addEventListener('pointermove', e => {
-    if (!S || !S.brushing) return;
-    setRay(e.clientX, e.clientY);
-    const h = raycaster.intersectObject(W.dirt, false)[0]; if (h) { S.brushHit = h.point; brushAt(h.uv); }
-  });
-  const stop = () => { if (S && S.noOrbit) { S.noOrbit = false; W.controls.enabled = true; } if (S && S.brushing) { S.brushing = false; S.lastUV = null; S.brushHit = null; W.controls.enabled = true; if (S.tool === 'brush') toolHome(); } };
-  addEventListener('pointerup', stop); addEventListener('pointercancel', stop);
-}
-
-function trySnap(obj) {
-  const kind = obj.userData.kind;
-  const target = new THREE.Vector3(0, DIM.pipeY, 0);
-  if (kind === 'gasket' || kind === 'gasketSmall') {
-    if (obj.position.distanceTo(target) > 0.14) return;
-    if (kind === 'gasketSmall') {
-      sfx.error(); fb('gasket_small', 'err', 4500);
-      penalize('assembly', 4, 'اختيار حشية بمقاس غير متوافق (DN80)');
-      gsap.to(obj.position, { y: 0.02, x: 0.6, duration: .7, ease: 'power2.in', onComplete: () => { W.scene.remove(obj); loose = loose.filter(o => o !== obj); } });
-      return;
-    }
-    if (S.elbowOn) return;
-    loose = loose.filter(o => o !== obj);
-    gsap.to(obj.position, { x: 0, y: DIM.pipeY, z: 0, duration: .35, ease: 'power2.out', onComplete: () => sfx.thunk() });
-    S.gasketOn = true; S.gasketObj = obj; fb('gasket_ok', 'ok', 2000);
-    if (S.ghost) gsap.to(S.ghost.position, { x: DIM.gasketT, duration: .3 });
-    renderFitDock();
-    return;
-  }
-  if (kind === 'elbow') {
-    const g = S.gasketOn ? DIM.gasketT : 0.0005;
-    target.x = g;
-    if (obj.position.distanceTo(target) > 0.16) return;
-    if (S.flipped) { sfx.error(); fb('flip', 'err', 4200); penalize('assembly', 3, 'محاولة تركيب الكوع بوش مقلوب'); bounceBack(obj); return; }
-    if (S.roll !== 0) {
-      sfx.error(); S.orientErr++;
-      fb('orient', 'err', 4200);
-      if (S.orientErr <= 3) penalize('assembly', 3, 'محاولة تركيب الكوع باتجاه مخالف للرسم');
-      bounceBack(obj); return;
-    }
-    if (!S.gasketOn && S.mode === 'learn') {
-      sfx.error(); fb('no_gasket', 'info', 4200);
-      penalize('assembly', 2, 'محاولة تركيب الكوع قبل الحشية'); bounceBack(obj); return;
-    }
-    loose = loose.filter(o => o !== obj);
-    S.elbowOn = true;
-    gsap.to(obj.position, { x: target.x, y: target.y, z: 0, duration: .5, ease: 'power3.out', onComplete: () => { sfx.clank(); } });
-    if (S.ghost) { W.scene.remove(S.ghost); S.ghost = null; }
-    fb('elbow_ok', 'ok', 2000);
-    setTimeout(nextStep, 1000);
-  }
-}
-function bounceBack(obj) { const p = STAGING[obj.userData.kind]; gsap.to(obj.position, { x: p.x, y: p.y, z: p.z, duration: .6, ease: 'back.out(1.6)' }); }
-
-// ---------- markers (holes / nuts) ----------
-function holeWorld(i) { const v = new THREE.Vector3(); W.spoolFlange.anchors[i].getWorldPosition(v); return v; }
-function addMarker(i, pos, tex) {
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-  sp.scale.setScalar(0.042); sp.position.copy(pos); sp.renderOrder = 10;
-  const hb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), new THREE.MeshBasicMaterial({ visible: false }));
-  hb.position.copy(pos); hb.userData.index = i;
-  sp.userData = { hitbox: hb, index: i, dynamic: true }; hb.userData.dynamic = true;
-  W.scene.add(sp, hb); S.markers.push(sp); S.pulse.push(sp);
-  return sp;
-}
-function clearMarkers() { if (!S) return; S.markers.forEach(m => { W.scene.remove(m, m.userData.hitbox); }); S.markers = []; S.pulse = []; }
-
-// ---------- step 4: bolts ----------
-function stepBolts() {
-  camTo('bolts');
-  S.studs = new Array(8).fill(null);
-  for (let i = 0; i < 8; i++) { const p = holeWorld(i); p.x = 0.05; addMarker(i, p, ringBlue); }
-  dock(`<div class="progress"><span class="mono" id="boltCount">0 / 8</span><div class="meter"><i id="boltBar" style="width:0%"></i></div></div>`, 'اضغط على كل خرم منوّر علشان تركّب المسمار');
-}
-function insertStud(i) {
-  if (S.studs[i]) return;
-  const st = studBolt(); const p = holeWorld(i);
-  const cx = (S.gasketOn ? DIM.gasketT : 0) / 2;
-  st.position.set(0.4, p.y, p.z); st.userData.dynamic = true; W.scene.add(st); S.studs[i] = st;
-  const m = S.markers.find(x => x.userData.index === i); if (m) { W.scene.remove(m, m.userData.hitbox); S.markers = S.markers.filter(x => x !== m); S.pulse = S.pulse.filter(x => x !== m); }
-  sfx.slide();
-  gsap.to(st.position, { x: cx, duration: .5, ease: 'power2.out', onComplete: () => { sfx.thunk(); gsap.fromTo(st.userData.front.rotation, { x: 0 }, { x: Math.PI * 3, duration: .5 }); } });
-  const n = S.studs.filter(Boolean).length;
-  $('#boltCount').textContent = `${n} / 8`; $('#boltBar').style.width = (n / 8 * 100) + '%';
-  if (n === 8) setTimeout(nextStep, 900);
-}
-
-// ---------- step 5: torque (star pattern) ----------
-const STAR = [0, 4, 2, 6, 1, 5, 3, 7];
-function starCandidates(seq) {
-  if (!seq.length) return null;
-  const s = seq[0], out = [];
-  [1, -1].forEach(dir => { const c = STAR.map(o => ((s + dir * o) % 8 + 8) % 8); if (seq.every((v, i) => c[i] === v)) out.push(c); });
-  return out;
-}
-function stepTorque() {
-  camTo('front');
-  S.torqueSeq = []; S.tight = new Array(8).fill(false); S.tool = null; S.busy = false;
-  for (let i = 0; i < 8; i++) { const p = holeWorld(i); p.x = 0.06; addMarker(i, p, ringAmber); }
-  dock(toolTiles('torque') + `<div class="progress"><span class="mono" id="tqCount">0 / 8</span><div class="meter"><i id="tqBar" style="width:0%"></i></div></div>`, 'التقط المفتاح المناسب، وبعدين اضغط على كل صامولة علشان تربطها · الترتيب مهم');
-  bindToolTiles('torque', 'bolting');
-}
-function wrenchOn(st, done) {
-  const o = S.toolObj, nut = st.userData.front;
-  const p = new THREE.Vector3(st.position.x + nut.position.x + 0.008, st.position.y, st.position.z);
-  const th = Math.atan2(st.position.z, st.position.y - DIM.pipeY);
-  S.busy = true;
-  const tl = gsap.timeline({ onComplete: () => { S.busy = false; done && done(); } });
-  tl.to(o.position, { x: p.x, y: p.y, z: p.z, duration: .4, ease: 'power2.out' }, 0)
-    .to(o.rotation, { x: th, y: 0, z: 0, duration: .4 }, 0);
-  for (let k = 0; k < 3; k++) {
-    tl.add(() => sfx.ratchet(4))
-      .to(o.rotation, { x: th - 0.75, duration: .32, ease: 'power1.inOut' })
-      .to(nut.rotation, { x: `+=${Math.PI * 0.8}`, duration: .32 }, '<')
-      .to(o.rotation, { x: th, duration: .2 });
-  }
-  tl.add(() => sfx.clank()).to(nut.position, { x: nut.position.x - 0.0025, duration: .2 }, '<');
-  const [rest, ry] = TOOL_REST.twrench;
-  tl.to(o.position, { x: rest.x, y: rest.y, z: rest.z, duration: .4, ease: 'power2.inOut' }).to(o.rotation, { x: 0, y: ry, duration: .4 }, '<');
-}
-function tightenNut(i) {
-  if (S.tight[i] || S.busy) return;
-  if (S.tool !== 'twrench') { fb('tool_wrench_pick', 'info'); hintTool(); return; }
-  const seq = [...S.torqueSeq, i];
-  const cand = starCandidates(seq);
-  if (S.mode === 'learn' && !cand.length) {
-    sfx.error();
-    const prev = starCandidates(S.torqueSeq); const next = prev[0][S.torqueSeq.length];
-    fb(S.torqueSeq.length === 1 ? 'torque_opposite' : 'torque_next', 'info');
-    penalize('bolting', 2, 'محاولة ربط مسمار خارج التتابع النجمي');
-    highlightNext([next]);
-    return;
-  }
-  S.torqueSeq = seq; S.tight[i] = true;
-  const st = S.studs[i];
-  const n0 = S.torqueSeq.length;
-  wrenchOn(st, () => { if (n0 === 8) { dropTool(); setTimeout(nextStep, 500); } });
-  const m = S.markers.find(x => x.userData.index === i); if (m) { m.material.map = ringMint; S.pulse = S.pulse.filter(x => x !== m); m.material.opacity = 1; }
-  S.markers.forEach(x => { if (!S.tight[x.userData.index]) x.material.map = ringAmber; });
-  if (S.mode === 'learn' && S.torqueSeq.length < 8) { const c = starCandidates(S.torqueSeq); highlightNext(c.map(x => x[S.torqueSeq.length])); }
-  const n = S.torqueSeq.length;
-  $('#tqCount').textContent = `${n} / 8`; $('#tqBar').style.width = (n / 8 * 100) + '%';
-  if (n === 8) {
-    if (S.mode === 'test' && !starCandidates(S.torqueSeq).length) penalize('bolting', 10, 'ترتيب ربط المسامير لم يكن نجمياً (ضغط غير متساوٍ على الحشية)');
-  }
-}
-function highlightNext(list) {
-  S.markers.forEach(x => { const k = x.userData.index; if (!S.tight[k]) x.material.map = list.includes(k) ? ringBlue : ringAmber; });
-}
-
-// ---------- step 6: pressure test ----------
-function gaugeSVG() {
-  let ticks = '';
-  for (let v = 0; v <= 16; v += 2) { const a = (-135 + v / 16 * 270) * Math.PI / 180; ticks += `<line x1="${60 + Math.sin(a) * 40}" y1="${60 - Math.cos(a) * 40}" x2="${60 + Math.sin(a) * 47}" y2="${60 - Math.cos(a) * 47}" stroke="#A3B5DA" stroke-width="2"/><text x="${60 + Math.sin(a) * 31}" y="${64 - Math.cos(a) * 31}" font-size="8" fill="#A3B5DA" text-anchor="middle" font-family="JetBrains Mono">${v}</text>`; }
-  const a10 = (-135 + 10 / 16 * 270) * Math.PI / 180;
-  return `<svg viewBox="0 0 120 120" role="img" aria-label="مانومتر الضغط"><circle cx="60" cy="60" r="54" fill="#0B1A3A" stroke="#22396E" stroke-width="3"/>
-    <path d="M${60 + Math.sin(a10) * 50} ${60 - Math.cos(a10) * 50} A50 50 0 0 1 ${60 + Math.sin(135 * Math.PI / 180) * 50} ${60 - Math.cos(135 * Math.PI / 180) * 50}" stroke="#FF4D57" stroke-width="4" fill="none"/>
-    ${ticks}<g id="needle" style="transform-origin:60px 60px;transform:rotate(-135deg)"><path d="M58 60 L60 16 L62 60 Z" fill="#FFC23D"/></g><circle cx="60" cy="60" r="6" fill="#EEF3FF"/>
-    <text x="60" y="92" font-size="8" fill="#A3B5DA" text-anchor="middle" font-family="JetBrains Mono">bar</text></svg>
-    <b id="pVal" dir="ltr">0.0 bar</b><small id="pState">الهدف: 10 bar</small>`;
-}
-function stepTest() {
-  camTo('test');
-  const g = $('#gauge'); g.innerHTML = gaugeSVG(); g.hidden = false;
-  S.p = 0; S.hold = false; S.leakT = 0; S.watch = 0; S.testOver = false;
-  dock(`<button class="holdbtn" id="pump"><i></i><span>اضغط مع الاستمرار: تشغيل المضخة</span></button>`, 'خليك ضاغط لحد ما الضغط يوصل 10 bar وراقب الوصلة');
-  const pump = $('#pump');
-  const on = e => { e.preventDefault(); unlockAudio(); S.hold = true; pump.setPointerCapture?.(e.pointerId); };
-  const off = () => { S.hold = false; };
-  pump.addEventListener('pointerdown', on); pump.addEventListener('pointerup', off); pump.addEventListener('pointercancel', off); pump.addEventListener('lostpointercapture', off);
-}
-let pumpTick = 0;
-function tickTest(dt) {
-  if (!S || STEPS[S.step]?.id !== 'test' || S.testOver || S.p === undefined) return;
-  const leaking = !S.gasketOn;
-  if (S.hold) {
-    S.p += dt * (leaking ? (S.p < 2.6 ? 2.6 : 0.15) : 3.0);
-    pumpTick += dt; if (pumpTick > 0.32) { pumpTick = 0; sfx.pump(); }
-  } else if (leaking) S.p = Math.max(0, S.p - dt * 0.9);
-  S.p = Math.min(S.p, 10);
-  if (leaking && S.p > 1.2) { leak.level = Math.min(1, (S.p - 1) / 2); S.leakT += S.hold ? dt : 0; } else leak.level = Math.max(0, leak.level - dt);
-  leakSound(leak.level);
-  const fill = $('#pump i'); if (fill) fill.style.width = (S.p / 10 * 100) + '%';
-  const nd = $('#needle'); if (nd) nd.style.transform = `rotate(${-135 + S.p / 16 * 270}deg)`;
-  const pv = $('#pVal'); if (pv) pv.textContent = S.p.toFixed(1) + ' bar';
-  if (leaking && S.leakT > 2.6) return testFail();
-  if (!leaking && S.p >= 10) {
-    S.watch += dt; const left = Math.max(0, 4 - S.watch);
-    $('#pState').textContent = `مراقبة الوصلة… ${left.toFixed(1)} ث`;
-    if (S.watch >= 4) testPass();
-  }
-}
-function testFail() {
-  S.testOver = true; S.hold = false; S.testFails++;
-  sfx.error(); toast('تسريب عند الوصلة! الضغط لا يرتفع، والحشية غير موجودة بين الفلانشتين.', 'err', 5000);
-  if (S.testFails === 1) { penalize('testing', 15, 'فشل اختبار الضغط: تسريب عند الوصلة'); penalize('assembly', 10, 'قفل الوصلة بدون حشية'); }
-  $('#pState').textContent = 'فشل: تسريب';
-  say('leak_fail');
-  dock(`<button class="btn btn--amber btn--xl" id="fixJoint">${I.wrench}فك الوصلة وصلّح</button>`);
-  $('#fixJoint').addEventListener('click', disassemble);
-}
-function disassemble() {
-  sfx.ratchet(10);
-  leak.level = 0; leakSound(0); $('#gauge').hidden = true;
-  S.studs.forEach((st, k) => st && gsap.to(st.position, { x: 0.5, y: st.position.y + 0.05, duration: .6, delay: k * 0.05, onComplete: () => W.scene.remove(st) }));
-  S.studs = []; S.tight = []; S.torqueSeq = [];
-  const e = S.elbow; S.elbowOn = false; loose.push(e);
-  gsap.to(e.position, { ...STAGING.elbow, duration: .8, delay: .4, ease: 'power2.inOut' });
-  S.p = undefined;
-  setTimeout(() => { S.step = 2; renderSteps(); narrate(); stepFit(); }, 1300);
-}
-function testPass() {
-  S.testOver = true; S.hold = false; leak.level = 0; leakSound(0);
-  $('#pState').textContent = 'ناجح: لا يوجد تسريب';
-  sfx.win(); fb('pass', 'ok', 3200);
-  burst();
-  setTimeout(finish, 2200);
-}
-function burst() {
-  if (!window.confetti) return;
-  const colors = ['#2F7CF6', '#FFC23D', '#2EE6A6', '#FFFFFF', '#E8323C'];
-  window.confetti({ particleCount: 140, spread: 80, origin: { y: .6 }, colors, disableForReducedMotion: true });
-  setTimeout(() => window.confetti({ particleCount: 90, angle: 60, spread: 60, origin: { x: 0 }, colors, disableForReducedMotion: true }), 250);
-  setTimeout(() => window.confetti({ particleCount: 90, angle: 120, spread: 60, origin: { x: 1 }, colors, disableForReducedMotion: true }), 400);
-}
-
-// ---------------- result ----------------
-function finish() {
-  clearInterval(S.timer); stopVoice();
-  const time = elapsed(), total = scoreNow();
-  const stars = total >= 90 ? 3 : total >= 70 ? 2 : 1;
-  const earned = [];
-  if (S.ded.safety === 0) earned.push('safety');
-  if (S.testFails === 0) earned.push('noleak');
-  if (S.ded.bolting === 0) earned.push('star');
-  if (time < 360) earned.push('fast');
-  const xp = S.mode === 'test' ? total : Math.round(total / 2);
-  profile.xp += xp; earned.forEach(b => profile.badges.includes(b) || profile.badges.push(b)); store.set('profile', profile);
-  const verdict = total >= 90 ? 'ممتاز' : total >= 80 ? 'جيد جداً' : total >= 65 ? 'جيد' : 'محتاج تدريب أكتر';
-  const crit = Object.entries(CATS).map(([k, [name, max]]) => { const got = Math.max(0, max - S.ded[k]); return `<div class="crit__row"><span>${name}</span><b class="mono" dir="ltr">${got} / ${max}</b><div class="meter"><i class="${got === max ? 'full' : ''}" style="width:${got / max * 100}%"></i></div></div>`; }).join('');
-  const log = S.mistakes.length ? S.mistakes.map(m => `<li><span class="mono muted">${fmt(m.t)}</span><span>${m.text}</span><b dir="ltr">−${m.pts}</b></li>`).join('') : '<li><span></span><span>مفيش أخطاء مسجلة. شغل نضيف.</span><span></span></li>';
-  $('#resultBody').innerHTML = `
-    <section class="card result__top">
-      <div class="stars" aria-label="${stars} من 3 نجوم">${[1, 2, 3].map(n => I.star.replace('<svg', `<svg class="${n <= stars ? 'on' : ''}"`)).join('')}</div>
-      <div><div class="bigscore mono" dir="ltr">${total}<small> / 100</small></div><h2>${verdict}</h2></div>
-      <div style="margin-inline-start:auto;display:flex;flex-direction:column;gap:.3rem">
-        <span class="muted">${profile.name || 'المتدرب'} · ${S.mode === 'test' ? 'وضع الاختبار' : 'وضع التعلّم'}</span>
-        <span class="mono">الزمن ${fmt(time)} · +${xp} XP</span>
-        <span>${earned.map(b => `<span class="badge is-on">${I.star}${BADGES[b]}</span>`).join(' ')}</span>
-      </div>
-    </section>
-    <section class="card crit"><h3>تفاصيل التقييم</h3>${crit}</section>
-    <section class="card log"><h3>سجل الأخطاء</h3><ul>${log}</ul></section>
-    <div class="result__actions"><button class="btn btn--primary btn--xl" data-action="again">أعد المحاولة</button><button class="btn btn--xl" data-action="gohome">الرئيسية</button></div>`;
-  show('result');
-  gsap.from('.stars svg', { scale: 0, rotate: -90, duration: .6, stagger: .18, ease: 'back.out(2)' });
-  gsap.from('.bigscore', { scale: .6, opacity: 0, duration: .6, ease: 'back.out(2)' });
-  if (stars >= 2) burst();
+  setTimeout(() => { const h = $('#exitHint'); h.hidden = false; setTimeout(() => (h.hidden = true), 5000); }, 400);
 }
 
 // ---------------- boot ----------------
-renderHome();
-document.fonts.ready.then(() => setTimeout(() => $('#boot').classList.add('is-gone'), 300));
-if (location.search.includes('debug')) window.__ml = () => ({ W, S, THREE, enterStep, finish });
+gsap.fromTo('.intro__gatelogo', { scale: .7, opacity: 0 }, { scale: 1, opacity: 1, duration: 1, ease: 'back.out(1.7)' });
+gsap.fromTo(['.intro__kicker', '.intro__enter'], { y: 14, opacity: 0 }, { y: 0, opacity: 1, duration: .6, stagger: .15, delay: .4 });
+if (location.search.includes('debug')) window.__ml = { go, openStation, startLaunch, launch, flangeStation, drawingStation, libraryStation, flangeDbg };

@@ -50,6 +50,15 @@ export const sfx = {
   error() { tone(220, 0.16, 'square', 0.12); tone(165, 0.24, 'square', 0.12, 0.15); },
   ok() { [523, 659, 784].forEach((f, i) => tone(f, 0.22, 'triangle', 0.14, i * 0.09)); },
   win() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, 0.35, 'triangle', 0.15, i * 0.11)); },
+  whoosh() {
+    const c = ensure(); if (!c || !audio.on) return;
+    const t = c.currentTime, src = c.createBufferSource(); src.buffer = noiseBuf;
+    const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(300, t); f.frequency.exponentialRampToValueAtTime(3200, t + 1.1);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+    src.connect(f).connect(g).connect(master); src.start(t); src.stop(t + 1.5);
+  },
+  chime() { [392, 523, 659, 784, 1046].forEach((f, i) => tone(f, 1.2, 'sine', 0.09, i * 0.07)); metal(880, 1.4, 0.06, 0.05); },
+  boom() { tone(70, 1.2, 'sine', 0.5, 0, 38); noise(0.5, 'lowpass', 300, 0.7, 0.25); },
   pump() { tone(60, 0.25, 'sawtooth', 0.08); noise(0.2, 'lowpass', 400, 1, 0.15); },
 };
 

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>ورشة المواسير الافتراضية</title>
-<meta name="description" content="محاكي ثلاثي الأبعاد لتدريب طلاب تخصص برادة وتركيبات خطوط المواسير — مركز تدريب شركة ترسانة الإسكندرية">
-<meta name="theme-color" content="#070F22">
+<meta name="description" content="معمل افتراضي ثلاثي الأبعاد لتخصص برادة وتركيبات خطوط المواسير — مركز تدريب شركة ترسانة الإسكندرية">
+<meta name="theme-color" content="#050B1A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
@@ -20,15 +20,45 @@
 </head>
 <body>
 
-<!-- ============ HOME ============ -->
-<section id="home" class="screen is-active" aria-label="الصفحة الرئيسية">
-  <header class="brandbar">
-    <img src="assets/logo.png" alt="شعار مركز تدريب شركة ترسانة الإسكندرية" class="brandbar__logo">
-    <div class="brandbar__text">
+<!-- ambient 3D pipe network shared by the intro and the hub -->
+<div class="ambient" id="ambient" aria-hidden="true"></div>
+
+<!-- ============ INTRO ============ -->
+<section id="intro" class="screen is-active" aria-label="المقدمة">
+  <div class="intro__gate" id="introGate">
+    <img src="assets/logo.png" alt="شعار مركز تدريب شركة ترسانة الإسكندرية" class="intro__gatelogo">
+    <p class="intro__kicker">مركز تدريب شركة ترسانة الإسكندرية</p>
+    <button class="btn btn--primary btn--xl intro__enter" data-action="intro-go">
+      <svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>ابدأ</button>
+    <small class="muted">شغّل الصوت لتجربة أفضل</small>
+  </div>
+
+  <div class="intro__show" id="introShow" hidden>
+    <ul class="intro__legend" id="introLegend" aria-label="ألوان خطوط الخدمات على السفن"></ul>
+    <div class="intro__center">
+      <div class="intro__logo-wrap"><span class="intro__ring"></span><span class="intro__ring intro__ring--2"></span><img src="assets/logo.png" alt="" class="intro__logo" id="introLogo"></div>
+      <p class="intro__org" id="introOrg">مركز تدريب شركة ترسانة الإسكندرية</p>
+      <h1 class="intro__title" id="introTitle"><span>برادة وتركيبات</span> <span>خطوط المواسير</span></h1>
+      <p class="intro__tag" id="introTag">المعمل الافتراضي ثلاثي الأبعاد · سفن · بترول وغاز · محطات مياه</p>
+      <p class="intro__welcome" id="introWelcome"></p>
+      <button class="btn btn--primary btn--xl intro__cta" data-action="intro-done" id="introCta">ادخل المعمل
+        <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    </div>
+    <button class="intro__skip" data-action="intro-done">تخطي</button>
+  </div>
+  <footer class="credit credit--float">تم تصميم وتطوير التطبيق بواسطة <b dir="ltr">Mohamed-Eldawly</b></footer>
+</section>
+
+<!-- ============ HUB ============ -->
+<section id="hub" class="screen" aria-label="محطات المعمل">
+  <header class="topbar">
+    <img src="assets/logo.png" alt="شعار مركز تدريب شركة ترسانة الإسكندرية" class="topbar__logo">
+    <div class="topbar__brand">
       <strong>مركز تدريب شركة ترسانة الإسكندرية</strong>
       <span>تخصص برادة وتركيبات خطوط المواسير</span>
     </div>
-    <div class="brandbar__tools">
+    <div class="topbar__tools">
+      <button class="chip-btn" data-action="profile" id="profileChip"><span class="lvl" id="chipLevel">1</span><span id="chipName">المتدرب</span></button>
       <button class="iconbtn" data-action="sound" aria-label="الصوت" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
       <button class="iconbtn" data-action="fullscreen" aria-label="ملء الشاشة"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       <button class="iconbtn iconbtn--exit" data-action="exit" aria-label="خروج من التطبيق"><svg viewBox="0 0 24 24"><path d="M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h5"/><path d="M15 8l-4 4 4 4M11 12h10"/></svg></button>
@@ -36,16 +66,17 @@
   </header>
   <p class="exit-hint" id="exitHint" hidden>لو الشاشة ما اتقفلتش: اضغط Alt + F4 أو اقفل نافذة المتصفح.</p>
 
-  <main class="home">
-    <div class="hero">
-      <div class="hero__copy">
-        <p class="eyebrow">MarineLab 3D · محاكي الورشة</p>
-        <h1 class="display">ورشة المواسير<br><span>الافتراضية</span></h1>
-        <p class="lead">اشتغل بإيدك على خطوط مواسير السفن: نظّف، ركّب، اربط، واختبر الضغط. لو غلطت هتشوف النتيجة قدامك، زي الورشة بالظبط.</p>
+  <main class="hub">
+    <section class="hub__hero">
+      <div class="hub__copy">
+        <p class="eyebrow">MarineLab 3D · المعمل الافتراضي</p>
+        <h1 class="display">اتعلّم الشغل<br><span>زي الورشة بالظبط</span></h1>
+        <p class="lead">محطات تدريب تفاعلية على مواسير السفن وخطوط البترول: قراءة الرسومات، والعِدد، والتجميع، والاختبار، مع عيوب ومشاكل حقيقية لازم تكتشفها وتصلحها.</p>
+        <div class="hub__stats" id="hubStats"></div>
       </div>
-      <div class="player card">
-        <label for="playerName" class="player__label">اسم المتدرب</label>
-        <input id="playerName" class="player__input" placeholder="اكتب اسمك" autocomplete="off" maxlength="40">
+      <aside class="profile glass" id="profilePanel">
+        <label for="playerName" class="profile__label">اسم المتدرب</label>
+        <input id="playerName" class="profile__input" placeholder="اكتب اسمك" autocomplete="off" maxlength="40">
         <div class="level">
           <div class="level__badge"><span id="levelNum">1</span><small>مستوى</small></div>
           <div class="level__bar">
@@ -54,107 +85,132 @@
           </div>
         </div>
         <div class="badges" id="badges" aria-label="الأوسمة"></div>
-      </div>
-    </div>
+      </aside>
+    </section>
 
-    <section class="missions" aria-labelledby="mTitle">
+    <section class="stations" aria-labelledby="stTitleH">
       <div class="section-head">
-        <h2 id="mTitle">المهمات</h2>
-        <span class="muted">بنفس ترتيب الشغل في الورشة</span>
+        <h2 id="stTitleH">محطات التعلم</h2>
+        <div class="filters" role="tablist" aria-label="تصنيف المحطات" id="stationFilters"></div>
       </div>
-
-      <article class="mission-hero card">
-        <div class="mission-hero__art" aria-hidden="true">
-          <svg viewBox="0 0 320 200">
-            <defs>
-              <linearGradient id="hp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a4558"/><stop offset=".45" stop-color="#cfd8e6"/><stop offset="1" stop-color="#2b3444"/></linearGradient>
-            </defs>
-            <rect x="0" y="0" width="320" height="200" rx="14" fill="#0B1A3A"/>
-            <g opacity=".35" stroke="#2F7CF6"><path d="M0 160h320M0 120h320M0 80h320M40 0v200M100 0v200M160 0v200M220 0v200M280 0v200"/></g>
-            <rect x="20" y="96" width="120" height="34" fill="url(#hp)"/>
-            <rect x="136" y="70" width="14" height="86" rx="3" fill="#a9b4c4"/>
-            <rect x="150" y="76" width="5" height="74" fill="#e8e1d2"/>
-            <rect x="155" y="70" width="14" height="86" rx="3" fill="#a9b4c4"/>
-            <path d="M169 113h18a44 44 0 0 1 44 44v40" fill="none" stroke="url(#hp)" stroke-width="34"/>
-            <g fill="#FFC23D"><circle cx="143" cy="78" r="4"/><circle cx="162" cy="148" r="4"/><circle cx="143" cy="148" r="4"/><circle cx="162" cy="78" r="4"/></g>
-            <circle cx="152" cy="113" r="30" fill="none" stroke="#2EE6A6" stroke-width="2" stroke-dasharray="5 6"/>
-          </svg>
-        </div>
-        <div class="mission-hero__body">
-          <div class="tagrow"><span class="tag tag--live">متاحة الآن</span><span class="tag">6 خطوات</span><span class="tag">≈ 10 دقائق</span></div>
-          <h3>تركيب كوع 90° بفلانشة على خط مياه تبريد</h3>
-          <p>البس مهمات الوقاية، نظّف وجه الفلانشة، ركّب الحشية والكوع في الاتجاه الصح، اربط 8 مسامير بالتتابع النجمي، وبعدين اعمل اختبار الضغط.</p>
-          <div class="modepick" role="radiogroup" aria-label="اختار الوضع">
-            <button class="mode is-on" role="radio" aria-checked="true" data-mode="learn"><b>تعلّم</b><small>شرح صوتي وإرشاد في كل خطوة</small></button>
-            <button class="mode" role="radio" aria-checked="false" data-mode="test"><b>اختبار</b><small>من غير مساعدة · بدرجة ونجوم</small></button>
-          </div>
-          <button class="btn btn--primary btn--xl" data-action="start">ادخل الورشة
-            <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
-        </div>
-      </article>
-
-      <ol class="mission-path" id="missionPath"></ol>
+      <div class="station-grid" id="stationGrid"></div>
     </section>
   </main>
   <footer class="credit">تم تصميم وتطوير التطبيق بواسطة <b dir="ltr">Mohamed-Eldawly</b></footer>
+
+  <!-- launch sheet: mode, level, scenario -->
+  <div class="sheet" id="launchSheet" hidden role="dialog" aria-modal="true" aria-labelledby="launchTitle">
+    <div class="sheet__card glass">
+      <button class="sheet__close iconbtn" data-action="sheet-close" aria-label="إغلاق"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <p class="eyebrow" id="launchKicker"></p>
+      <h3 id="launchTitle"></h3>
+      <p class="muted" id="launchDesc"></p>
+      <div class="sheet__group" id="scenarioGroup"><b>الموقع</b><div class="seg" id="scenarioSeg"></div></div>
+      <div class="sheet__group"><b>الوضع</b><div class="seg" id="modeSeg"></div></div>
+      <div class="sheet__group"><b>المستوى</b><div class="seg seg--3" id="levelSeg"></div></div>
+      <button class="btn btn--primary btn--xl" data-action="launch">ابدأ التدريب<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+    </div>
+  </div>
 </section>
 
-<!-- ============ WORKSHOP ============ -->
-<section id="workshop" class="screen" aria-label="الورشة">
-  <div id="stage" class="stage"></div>
-
-  <header class="hud-top">
-    <button class="iconbtn" data-action="home" aria-label="خروج للرئيسية"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
-    <img src="assets/logo.png" alt="" class="hud-logo">
-    <div class="hud-title">
-      <small>مركز تدريب ترسانة الإسكندرية · برادة وتركيبات المواسير</small>
-      <strong id="stepTitle">—</strong>
+<!-- ============ LIBRARY ============ -->
+<section id="library" class="screen" aria-label="مكتبة العدد والمعدات">
+  <header class="topbar topbar--slim">
+    <button class="iconbtn" data-action="hub" aria-label="رجوع لمحطات المعمل"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <img src="assets/logo.png" alt="" class="topbar__logo topbar__logo--sm">
+    <div class="topbar__brand"><strong>مكتبة العِدد والمعدات</strong><span>لِف العدة بإيدك واعرف أجزاءها واستخدامها</span></div>
+    <div class="topbar__tools">
+      <button class="iconbtn" data-action="sound" aria-label="الصوت" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
     </div>
-    <div class="hud-stats">
+  </header>
+  <div class="lib">
+    <nav class="lib__list glass" aria-label="قائمة العدد">
+      <div class="lib__cats" id="libCats" role="tablist"></div>
+      <ul class="lib__items" id="libItems"></ul>
+    </nav>
+    <div class="lib__view">
+      <div class="lib__stage" id="libStage"></div>
+      <div class="lib__tools" role="toolbar" aria-label="التحكم في العرض">
+        <button class="iconbtn" data-lib="rotate" aria-pressed="true" aria-label="دوران تلقائي"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></button>
+        <button class="iconbtn" data-lib="labels" aria-pressed="true" aria-label="إظهار أسماء الأجزاء"><svg viewBox="0 0 24 24"><path d="M4 7h10M4 12h16M4 17h7"/></svg></button>
+        <button class="iconbtn" data-lib="reset" aria-label="إعادة الضبط"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v5h5"/></svg></button>
+      </div>
+      <p class="lib__hint">اسحب للّف · قرّب بإصبعين أو بعجلة الماوس</p>
+    </div>
+    <article class="lib__info glass" id="libInfo" aria-live="polite"></article>
+  </div>
+</section>
+
+<!-- ============ DRAWING ============ -->
+<section id="drawing" class="screen" aria-label="قراءة الرسومات">
+  <header class="topbar topbar--slim">
+    <button class="iconbtn" data-action="hub" aria-label="رجوع لمحطات المعمل"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <img src="assets/logo.png" alt="" class="topbar__logo topbar__logo--sm">
+    <div class="topbar__brand"><strong id="drTitle">قراءة الرسومات الهندسية</strong><span id="drSub">رسم أيزومتري</span></div>
+    <div class="topbar__tools">
+      <span class="pill mono"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/></svg><span id="drTimer">00:00</span></span>
+      <span class="pill pill--score mono"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg><span id="drScore">0</span></span>
+      <button class="iconbtn" data-action="sound" aria-label="الصوت" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
+    </div>
+  </header>
+  <div class="dr">
+    <div class="dr__sheet" id="drSheet"></div>
+    <aside class="dr__panel glass" id="drPanel" aria-live="polite"></aside>
+  </div>
+</section>
+
+<!-- ============ STATION (3D exercise) ============ -->
+<section id="station" class="screen" aria-label="محطة التدريب">
+  <header class="topbar topbar--slim">
+    <button class="iconbtn" data-action="hub" aria-label="خروج لمحطات المعمل"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+    <img src="assets/logo.png" alt="" class="topbar__logo topbar__logo--sm">
+    <div class="topbar__brand"><strong id="stTitle">—</strong><span id="stSub"></span></div>
+    <div class="topbar__tools">
       <span class="pill pill--ppe" id="ppePill" hidden aria-label="مهمات الوقاية مكتملة"></span>
       <span class="pill" id="modePill">تعلّم</span>
+      <span class="pill pill--level" id="levelPill" data-level="easy">مبتدئ</span>
       <span class="pill mono" aria-label="الزمن"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/></svg><span id="timer">00:00</span></span>
       <span class="pill pill--score mono" aria-label="الدرجة"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg><span id="score">100</span></span>
       <button class="iconbtn" data-action="sound" aria-label="الصوت" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
       <button class="iconbtn" data-action="fullscreen" aria-label="ملء الشاشة"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     </div>
   </header>
-
-  <ol class="steps" id="steps" aria-label="خطوات التمرين"></ol>
-
-  <div class="camtools" role="toolbar" aria-label="الكاميرا">
-    <button class="iconbtn" data-cam="front" aria-label="منظر أمامي"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
-    <button class="iconbtn" data-cam="iso" aria-label="منظر مجسم"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
-    <button class="iconbtn" data-cam="close" aria-label="تكبير على الوصلة"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5M11 8v6M8 11h6"/></svg></button>
+  <div class="st">
+    <div class="st__view" id="stage">
+      <div class="st__canvas" id="stage3d"></div>
+      <div class="camtools" role="toolbar" aria-label="الكاميرا">
+        <button class="iconbtn" data-cam="front" aria-label="منظر أمامي"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
+        <button class="iconbtn" data-cam="iso" aria-label="منظر مجسم"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
+        <button class="iconbtn" data-cam="close" aria-label="تكبير على الوصلة"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5M11 8v6M8 11h6"/></svg></button>
+      </div>
+    </div>
+    <aside class="st__panel" aria-label="لوحة التمرين">
+      <div class="panel__head">
+        <span class="eyebrow" id="stepNow">—</span>
+        <ol class="steps" id="steps" aria-label="خطوات التمرين"></ol>
+      </div>
+      <div class="say" id="say">
+        <button class="iconbtn" data-action="replay" aria-label="إعادة الشرح"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button>
+        <p id="sayText">—</p>
+      </div>
+      <div class="msg" id="toast" role="status" hidden></div>
+      <div class="panel__extra" id="extra" hidden></div>
+      <div class="dock" id="dock" aria-live="polite"></div>
+    </aside>
   </div>
-
-  <aside class="worker" id="worker" hidden aria-label="مهمات الوقاية"></aside>
-  <div class="dock" id="dock" aria-live="polite"></div>
-
-  <div class="say" id="say">
-    <button class="iconbtn" data-action="replay" aria-label="إعادة الشرح"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></button>
-    <p id="sayText">—</p>
-  </div>
-
-  <div class="toast" id="toast" role="status" hidden></div>
-  <div class="gauge" id="gauge" hidden></div>
-  <footer class="credit credit--hud">تم تصميم وتطوير التطبيق بواسطة <b dir="ltr">Mohamed-Eldawly</b></footer>
 </section>
 
 <!-- ============ RESULT ============ -->
 <section id="result" class="screen" aria-label="النتيجة">
-  <header class="brandbar">
-    <img src="assets/logo.png" alt="شعار مركز تدريب شركة ترسانة الإسكندرية" class="brandbar__logo">
-    <div class="brandbar__text">
-      <strong>مركز تدريب شركة ترسانة الإسكندرية</strong>
-      <span>تخصص برادة وتركيبات خطوط المواسير</span>
-    </div>
+  <header class="topbar">
+    <img src="assets/logo.png" alt="شعار مركز تدريب شركة ترسانة الإسكندرية" class="topbar__logo">
+    <div class="topbar__brand"><strong>مركز تدريب شركة ترسانة الإسكندرية</strong><span>تخصص برادة وتركيبات خطوط المواسير</span></div>
   </header>
   <main class="result" id="resultBody"></main>
   <footer class="credit">تم تصميم وتطوير التطبيق بواسطة <b dir="ltr">Mohamed-Eldawly</b></footer>
 </section>
 
-<div class="boot" id="boot"><img src="assets/logo.png" alt=""><span>جاري تجهيز الورشة…</span></div>
+<div class="boot" id="boot" hidden><img src="assets/logo.png" alt=""><span>جاري تجهيز الورشة…</span></div>
 
 <script type="module" src="js/main.js"></script>
 <script>
