@@ -1,0 +1,20 @@
+{
+  "name": "ورشة المواسير الافتراضية — مركز تدريب ترسانة الإسكندرية",
+  "short_name": "ورشة المواسير",
+  "description": "محاكي ثلاثي الأبعاد لتخصص برادة وتركيبات خطوط المواسير",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#070F22",
+  "theme_color": "#070F22",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
